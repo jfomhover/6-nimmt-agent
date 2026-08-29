@@ -67,6 +67,16 @@ Or: reuse an existing browser session (persistent context / cookies file).
 
 ## Game Loop (`loop.ts`)
 
+### Live Resolution Fidelity
+
+The live BGA DOM does not reliably expose every opponent card and per-card placement
+before a forced row-pick decision. The headless player must never fabricate that
+information. During row choice it provides the triggering card and the public reveals
+known at that point; `turnHistory` and opponent resolutions may therefore be partial.
+Stateful strategies used in this mode must tolerate that degraded context. Once the
+post-resolution board is available, the player records the board-diff reconstruction
+for subsequent card-counting decisions.
+
 ```typescript
 export async function playGame(page: Page, strategy: Strategy, opts: PlayOpts) {
   while (true) {

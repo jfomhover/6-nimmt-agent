@@ -561,7 +561,9 @@ function buildRowChoiceState(
     // triggeringCard is the card we played that forced the row pick.
     // We track it from the previous play action; fallback to 1 if unknown.
     triggeringCard: lastPlayedCard ?? (() => { throw new Error('Cannot build row-choice state without the triggering card.'); })(),
-    revealedThisTurn: [],
+    // BGA does not expose opponent reveals reliably before row-pick UI appears.
+    // Preserve the known public reveal rather than inventing opponent cards.
+    revealedThisTurn: lastPlayedCard ? [{ playerId: state.myPlayerId, card: lastPlayedCard }] : [],
     resolutionIndex: 0,
     hand: state.hand.map(h => h.cardValue).filter((card) => card !== lastPlayedCard),
     playerScores: Object.entries(state.scores).map(([id, score]) => ({ id, score, penaltyThisRound: 0 })),
