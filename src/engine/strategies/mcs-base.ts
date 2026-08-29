@@ -97,7 +97,7 @@ export function buildUnknownPool(
   board: Board,
   seenCards: Set<number>,
   turnHistory: CardChoiceState['turnHistory'],
-  initialBoardCards: Board,
+  initialBoardCards: readonly CardNumber[],
 ): CardNumber[] {
   const known = new Set<number>();
   for (const c of hand) known.add(c);
@@ -108,9 +108,7 @@ export function buildUnknownPool(
   for (const entry of turnHistory) {
     for (const play of entry.plays) known.add(play.card);
   }
-  for (const row of initialBoardCards.rows) {
-    for (const c of row) known.add(c);
-  }
+  for (const c of initialBoardCards) known.add(c);
 
   const pool: CardNumber[] = [];
   for (let i = 1; i <= 104; i++) {

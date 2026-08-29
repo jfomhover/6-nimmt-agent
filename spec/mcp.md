@@ -264,7 +264,7 @@ Tells the server how a turn resolved. The server calls `strategy.onTurnResolved(
 - `DUPLICATE_EVENT` — Exact same round/turn and payload already processed. Safe to ignore.
 - `EVENT_CONFLICT` — Same round/turn already recorded with different data. Use `resync_session`.
 
-> **Rule 4 resolution semantics:** When a player's card triggers Rule 4 (lower than all row tails), their entry in `resolutions` has `rowIndex` set to the row they **picked** (which is also where their card is placed as the new sole card). `causedOverflow` is `true` and `collectedCards` contains the cards from the picked row. The same information appears in `rowPicks` with attribution context. Both fields are consistent — `resolutions[].rowIndex` == `rowPicks[].rowIndex` for the same player.
+> **Rule 4 resolution semantics:** When a player's card triggers Rule 4 (lower than all row tails), their entry in `resolutions` has `rowIndex` set to the row they **picked** (which is also where their card is placed as the new sole card). `causedOverflow` is `false` because Rule 4 is distinct from a sixth-card overflow, and `collectedCards` contains the cards from the picked row. The same information appears in `rowPicks` with attribution context. Both fields are consistent — `resolutions[].rowIndex` == `rowPicks[].rowIndex` for the same player.
 
 > **Note:** The server normalizes `resolutions` to ascending card order upon receipt. The agent may provide them in any order.
 

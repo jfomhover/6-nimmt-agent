@@ -6,6 +6,7 @@ import {
   createGame,
   dealRound,
   resolveTurn,
+  applyRowPick,
   scoreRound,
   isGameOver,
   getWinners,
@@ -135,11 +136,19 @@ describe('full game trace replay', () => {
               return turnRowPick.pickedRowIndex;
             };
 
-            state = resolveTurn(state, plays, rowPickFn);
+            let resolution = resolveTurn(state, plays);
+            while (resolution.kind === 'needs-row-pick') {
+              const row = rowPickFn(resolution.playerId, resolution.state);
+              resolution = applyRowPick(resolution.state, resolution.playerId, row as 0 | 1 | 2 | 3);
+            }
+            state = resolution.state;
 
             // Verify board after turn
             expect(boardToArrays(state.board)).toEqual(turnTrace.boardAfter);
           }
+
+          // Scores are applied at the round boundary, not during turn resolution.
+          state = scoreRound(state);
 
           // Verify round scores
           for (const rs of round.roundScores) {
@@ -148,10 +157,7 @@ describe('full game trace replay', () => {
             expect(player!.score).toBe(rs.totalScore);
           }
 
-          // Transition to next round
-          if (round !== trace.rounds[trace.rounds.length - 1]) {
-            state = scoreRound(state);
-          }
+          // Transition to next round is performed by dealRound().
         }
 
         // Verify final results

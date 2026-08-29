@@ -194,7 +194,7 @@ function toolResult(data: unknown) {
 }
 
 function toolError(error: DomainError) {
-  return { content: [{ type: 'text' as const, text: JSON.stringify(error) }], isError: true };
+  return { content: [{ type: 'text' as const, text: JSON.stringify(error) }] };
 }
 
 // ── Result helper ───────────────────────────────────────────────────

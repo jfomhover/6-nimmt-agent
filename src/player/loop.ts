@@ -32,6 +32,7 @@ import { readGameState, detectAction, getFinalScores, findCheapestRow, captureEr
 import { playCard, pickRow } from './actor.js';
 import { log, logError } from './logger.js';
 import { GameCollector } from './collector.js';
+import { deriveSeedState, xoshiro256ss } from '../engine/index.js';
 
 /** Safely extract message and stack from any thrown value. */
 function formatError(err: unknown): { message: string; stack?: string } {
@@ -133,7 +134,7 @@ export async function playGame(page: Page, opts: PlayOptions): Promise<GameResul
   strategy.onGameStart?.({
     playerId: initialState.myPlayerId,
     playerCount,
-    rng: Math.random,
+    rng: (() => { const state = deriveSeedState(`headless/${initialState.myPlayerId}/${opts.strategyName ?? strategy.name}`); return () => Number(xoshiro256ss(state) >> 11n) / 2 ** 53; })(),
   });
 
   /** Called when game ends. Determines win based on lowest score. */
@@ -165,6 +166,7 @@ export async function playGame(page: Page, opts: PlayOptions): Promise<GameResul
   const initialBoard = initialState.board.rows.map(r => [...r]);
   let roundStartBoard = initialBoard; // snapshot of board at round start (for initialBoardCards)
   let lastPlayedCard: CardNumber | undefined; // track last card we played (needed for row pick context)
+  let lastNotifiedResolutionKey: string | undefined;
   collector?.startRound(1, initialBoard, initialHand);
   strategy.onRoundStart?.({
     round: 1,
@@ -259,6 +261,7 @@ export async function playGame(page: Page, opts: PlayOptions): Promise<GameResul
       const hand = state.hand.map(h => h.cardValue as number);
       const board = state.board.rows.map(r => [...r]);
       roundStartBoard = board; // save for initialBoardCards in strategy state
+      lastNotifiedResolutionKey = undefined;
       collector?.startRound(currentRound, board, hand);
       strategy.onRoundStart?.({
         round: currentRound,
@@ -396,7 +399,7 @@ export async function playGame(page: Page, opts: PlayOptions): Promise<GameResul
       // fallback to cheapest row (fewest cattle heads) if strategy throws.
       let rowIdx: 0 | 1 | 2 | 3;
       try {
-        const rowState = buildRowChoiceState(state, playerCount, currentRound, currentTurn, lastPlayedCard);
+         const rowState = buildRowChoiceState(state, playerCount, currentRound, Math.max(1, currentTurn - 1), roundStartBoard, lastPlayedCard);
         rowIdx = strategy.chooseRow(rowState);
       } catch {
         rowIdx = findCheapestRow(state.board);
@@ -512,13 +515,15 @@ export async function playGame(page: Page, opts: PlayOptions): Promise<GameResul
           // When action is pickRow, hand already decreased from the prior playCard,
           // so inferTurn() is +1 ahead — use the previous turn number instead.
           const resolvedTurn = action === 'pickRow' ? Math.max(1, currentTurn - 1) : currentTurn;
-          strategy.onTurnResolved({
+          const resolutionKey = `${currentRound}:${resolvedTurn}`;
+          if (resolutionKey !== lastNotifiedResolutionKey) strategy.onTurnResolved({
             turn: resolvedTurn,
             plays,
             resolutions: [],
             rowPicks: [],
             boardAfter: postState.board.rows.map(r => [...r]) as unknown as CardNumber[][],
           });
+          lastNotifiedResolutionKey = resolutionKey;
         }
       }
     } catch { /* non-critical — don't crash if post-read fails */ }
@@ -533,16 +538,16 @@ function buildCardChoiceState(
   roundStartBoard: number[][],
 ): CardChoiceState {
   const board = { rows: state.board.rows as unknown as readonly [readonly CardNumber[], readonly CardNumber[], readonly CardNumber[], readonly CardNumber[]] };
-  const initialBoard = { rows: roundStartBoard as unknown as readonly [readonly CardNumber[], readonly CardNumber[], readonly CardNumber[], readonly CardNumber[]] };
+  const initialBoardCards = roundStartBoard.map((row) => row[0]) as CardNumber[];
   return {
     hand: state.hand.map(h => h.cardValue),
     board,
-    playerScores: state.scores,
+    playerScores: Object.entries(state.scores).map(([id, score]) => ({ id, score, penaltyThisRound: 0 })),
     playerCount,
     round,
     turn, // already 1-based from inferTurn (11 - handSize)
     turnHistory: [],
-    initialBoardCards: initialBoard,
+    initialBoardCards,
   };
 }
 
@@ -551,6 +556,7 @@ function buildRowChoiceState(
   playerCount: number,
   round: number,
   turn: number,
+  roundStartBoard: number[][],
   lastPlayedCard?: CardNumber,
 ): RowChoiceState {
   const board = { rows: state.board.rows as unknown as readonly [readonly CardNumber[], readonly CardNumber[], readonly CardNumber[], readonly CardNumber[]] };
@@ -558,14 +564,17 @@ function buildRowChoiceState(
     board,
     // triggeringCard is the card we played that forced the row pick.
     // We track it from the previous play action; fallback to 1 if unknown.
-    triggeringCard: lastPlayedCard ?? (1 as CardNumber),
-    revealedThisTurn: [],
+    triggeringCard: lastPlayedCard ?? (() => { throw new Error('Cannot build row-choice state without the triggering card.'); })(),
+    // BGA does not expose opponent reveals reliably before row-pick UI appears.
+    // Preserve the known public reveal rather than inventing opponent cards.
+    revealedThisTurn: lastPlayedCard ? [{ playerId: state.myPlayerId, card: lastPlayedCard }] : [],
     resolutionIndex: 0,
-    hand: state.hand.map(h => h.cardValue),
-    playerScores: state.scores,
+    hand: state.hand.map(h => h.cardValue).filter((card) => card !== lastPlayedCard),
+    playerScores: Object.entries(state.scores).map(([id, score]) => ({ id, score, penaltyThisRound: 0 })),
     playerCount,
     round,
     turn, // already 1-based from inferTurn
     turnHistory: [],
+    initialBoardCards: roundStartBoard.map((row) => row[0]) as CardNumber[],
   };
 }

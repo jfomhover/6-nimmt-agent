@@ -6,6 +6,7 @@ import {
   createGame,
   dealRound,
   resolveTurn,
+  applyRowPick,
   scoreRound,
   createPrng,
   type GameState,
@@ -27,6 +28,12 @@ function makeRandomStrategy(seed: string) {
       return Math.floor(prng.nextFloat() * 4);
     },
   };
+}
+
+function resolveWithRows(state: GameState, plays: PlayCardMove[], strategy: ReturnType<typeof makeRandomStrategy>): GameState {
+  let resolution = resolveTurn(state, plays);
+  while (resolution.kind === 'needs-row-pick') resolution = applyRowPick(resolution.state, resolution.playerId, strategy.pickRow() as 0 | 1 | 2 | 3);
+  return resolution.state;
 }
 
 describe('Immutability — engine never mutates input state', () => {
@@ -55,7 +62,7 @@ describe('Immutability — engine never mutates input state', () => {
       card: strategy.pickCard(p.hand),
     }));
 
-    resolveTurn(state, plays, () => strategy.pickRow());
+    resolveWithRows(state, plays, strategy);
     expect(state).toStrictEqual(clone);
   });
 
@@ -69,7 +76,7 @@ describe('Immutability — engine never mutates input state', () => {
         playerId: p.id,
         card: strategy.pickCard(p.hand),
       }));
-      state = resolveTurn(state, plays, () => strategy.pickRow());
+      state = resolveWithRows(state, plays, strategy);
     }
 
     const clone = deepClone(state);
@@ -88,7 +95,7 @@ describe('Immutability — engine never mutates input state', () => {
     }));
     const playsCopy = deepClone(plays);
 
-    resolveTurn(state, plays, () => strategy.pickRow());
+    resolveWithRows(state, plays, strategy);
     expect(plays).toStrictEqual(playsCopy);
   });
 
@@ -107,7 +114,7 @@ describe('Immutability — engine never mutates input state', () => {
         playerId: p.id,
         card: strategy.pickCard(p.hand),
       }));
-      state = resolveTurn(state, plays, () => strategy.pickRow());
+      state = resolveWithRows(state, plays, strategy);
     }
 
     // Verify no snapshot was mutated
@@ -121,7 +128,7 @@ describe('Immutability — engine never mutates input state', () => {
         playerId: p.id,
         card: strategy2.pickCard(p.hand),
       }));
-      state2 = resolveTurn(state2, plays, () => strategy2.pickRow());
+      state2 = resolveWithRows(state2, plays, strategy2);
     }
   });
 });

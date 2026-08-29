@@ -31,15 +31,8 @@ export type GamePhase =
   | 'round-over'
   | 'awaiting-cards'
   | 'resolving'
-  | 'awaiting-row-pick';
-
-// ── Pending row pick ───────────────────────────────────────────────────
-
-export interface PendingRowPick {
-  readonly playerId: string;
-  readonly triggeringCard: CardNumber;
-  readonly revealedThisTurn: readonly PlayCardMove[];
-}
+  | 'awaiting-row-pick'
+  | 'game-over';
 
 // ── Game state ─────────────────────────────────────────────────────────
 
@@ -52,8 +45,8 @@ export interface GameState {
   readonly phase: GamePhase;
   readonly seed: string;
   readonly turnHistory: readonly TurnHistoryEntry[];
-  readonly initialBoardCards: Board;
-  readonly pendingRowPick?: PendingRowPick;
+  readonly initialBoardCards: readonly CardNumber[];
+  readonly pendingResolution?: PendingTurnResolution;
 }
 
 // ── Moves ──────────────────────────────────────────────────────────────
@@ -70,15 +63,13 @@ export interface PickRowMove {
 
 // ── Placement ──────────────────────────────────────────────────────────
 
-export interface PlacementResult {
-  readonly rowIndex: number;
-  readonly causedOverflow: boolean;
-  readonly collectedCards?: readonly CardNumber[];
-}
+export type PlacementResult =
+  | { readonly kind: 'place'; readonly rowIndex: 0 | 1 | 2 | 3; readonly causedOverflow: boolean; readonly collectedCards?: readonly CardNumber[] }
+  | { readonly kind: string };
 
 // ── Turn resolution ────────────────────────────────────────────────────
 
-export interface TurnResolutionResult {
+export interface TurnResolutionDetail {
   readonly resolutions: ReadonlyArray<{
     readonly playerId: string;
     readonly card: CardNumber;
@@ -92,17 +83,29 @@ export interface TurnResolutionResult {
     readonly collectedCards: readonly CardNumber[];
   }>;
   readonly collected: Readonly<Record<string, CardNumber[]>>;
-  readonly boardAfter: Board;
+  readonly boardAfter: readonly CardNumber[][];
 }
+
+export type TurnResolutionResult =
+  | (GameState & { readonly kind: 'completed'; readonly state: GameState })
+  | (GameState & { readonly kind: 'needs-row-pick'; readonly playerId: string; readonly card: CardNumber; readonly state: GameState });
 
 // ── Turn history ───────────────────────────────────────────────────────
 
 export interface TurnHistoryEntry {
   readonly turn: number;
   readonly plays: readonly PlayCardMove[];
-  readonly resolutions: TurnResolutionResult['resolutions'];
-  readonly rowPicks: TurnResolutionResult['rowPicks'];
-  readonly boardAfter: Board;
+  readonly resolutions: TurnResolutionDetail['resolutions'];
+  readonly rowPicks: TurnResolutionDetail['rowPicks'];
+  readonly boardAfter: readonly CardNumber[][];
+}
+
+export interface PendingTurnResolution {
+  readonly sortedPlays: readonly PlayCardMove[];
+  readonly nextIndex: number;
+  readonly pendingRowPick?: { readonly playerId: string; readonly card: CardNumber };
+  readonly resolutions: TurnResolutionDetail['resolutions'];
+  readonly rowPicks: TurnResolutionDetail['rowPicks'];
 }
 
 // ── Visible state for agents ───────────────────────────────────────────
@@ -111,12 +114,12 @@ export interface TurnHistoryEntry {
 export interface CardChoiceState {
   readonly hand: readonly CardNumber[];
   readonly board: Board;
-  readonly playerScores: Readonly<Record<string, number>>;
+  readonly playerScores: readonly { readonly id: string; readonly score: number; readonly penaltyThisRound: number }[];
   readonly playerCount: number;
   readonly round: number;
   readonly turn: number;
   readonly turnHistory: readonly TurnHistoryEntry[];
-  readonly initialBoardCards: Board;
+  readonly initialBoardCards: readonly CardNumber[];
 }
 
 /** Visible state for row pick (what the agent sees when forced to pick a row). */
@@ -126,9 +129,10 @@ export interface RowChoiceState {
   readonly revealedThisTurn: readonly PlayCardMove[];
   readonly resolutionIndex: number;
   readonly hand: readonly CardNumber[];
-  readonly playerScores: Readonly<Record<string, number>>;
+  readonly playerScores: readonly { readonly id: string; readonly score: number; readonly penaltyThisRound: number }[];
   readonly playerCount: number;
   readonly round: number;
   readonly turn: number;
   readonly turnHistory: readonly TurnHistoryEntry[];
+  readonly initialBoardCards: readonly CardNumber[];
 }

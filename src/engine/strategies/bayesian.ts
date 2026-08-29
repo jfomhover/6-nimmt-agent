@@ -91,7 +91,7 @@ function fisherYates<T>(arr: T[], rng: () => number): T[] {
 }
 
 export function createBayesianSimpleStrategy(): Strategy {
-  let rng: () => number = Math.random;
+  let rng: (() => number) | null = null;
   let playerCount = 2;
   // Persistent set of all cards ever observed — fed by onTurnResolved().
   let seenCards = new Set<number>();
@@ -102,6 +102,10 @@ export function createBayesianSimpleStrategy(): Strategy {
     onGameStart(config) {
       rng = config.rng;
       playerCount = config.playerCount;
+      seenCards = new Set();
+    },
+
+    onRoundStart() {
       seenCards = new Set();
     },
 
@@ -125,6 +129,7 @@ export function createBayesianSimpleStrategy(): Strategy {
     },
 
     chooseCard(state) {
+      if (!rng) throw new Error('BayesianSimpleStrategy: onGameStart() must be called before chooseCard()');
       const { hand, board, turn } = state;
       const opponentCount = playerCount - 1;
       const cardsPerPlayer = 10 - turn + 1; // cards remaining in each hand
@@ -139,9 +144,7 @@ export function createBayesianSimpleStrategy(): Strategy {
       for (const entry of state.turnHistory) {
         for (const play of entry.plays) known.add(play.card);
       }
-      for (const row of state.initialBoardCards.rows) {
-        for (const c of row) known.add(c);
-      }
+      for (const c of state.initialBoardCards) known.add(c);
 
       const unknownPool: CardNumber[] = [];
       for (let i = 1; i <= 104; i++) {

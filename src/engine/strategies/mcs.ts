@@ -100,7 +100,7 @@ export function createMcsStrategy(options: McsOptions = {}): Strategy {
   // Default mcMax = 10 × mcPerCard (max hand size is 10, so budget never clips by default)
   const mcMax = Math.max(1, Math.floor(Number(options.mcMax) || mcPerCard * 10));
   const scoring: 'self' | 'relative' = options.scoring === 'relative' ? 'relative' : 'self';
-  let rng: () => number = Math.random;
+  let rng: (() => number) | null = null;
   let playerCount = 2;
   // Persistent set of all cards ever observed — fed by onTurnResolved().
   let seenCards = new Set<number>();
@@ -137,6 +137,7 @@ export function createMcsStrategy(options: McsOptions = {}): Strategy {
     },
 
     chooseCard(state) {
+      if (!rng) throw new Error('McsStrategy: onGameStart() must be called before chooseCard()');
       const { hand, board, turn } = state;
       const opponentCount = playerCount - 1;
       const cardsPerPlayer = 10 - turn + 1;
@@ -178,6 +179,7 @@ export function createMcsStrategy(options: McsOptions = {}): Strategy {
     },
 
     chooseRow(state) {
+      if (!rng) throw new Error('McsStrategy: onGameStart() must be called before chooseRow()');
       // For row picks: simulate remaining round for each row choice
       const { board } = state;
       const opponentCount = playerCount - 1;

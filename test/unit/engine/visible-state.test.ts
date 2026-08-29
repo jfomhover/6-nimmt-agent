@@ -7,7 +7,7 @@ import {
 } from '../../../src/engine';
 import type {
   GameState,
-  PendingRowPick,
+  PendingTurnResolution,
 } from '../../../src/engine';
 
 function setupAwaitingCards(seed = 'visible-state-seed'): GameState {
@@ -22,15 +22,17 @@ function setupAwaitingRowPick(seed = 'visible-state-seed'): GameState {
     playerId: p.id,
     card: p.hand[0],
   }));
-  const pendingRowPick: PendingRowPick = {
-    playerId: 'p0',
-    triggeringCard,
-    revealedThisTurn,
+  const pendingResolution: PendingTurnResolution = {
+    sortedPlays: revealedThisTurn,
+    nextIndex: 0,
+    pendingRowPick: { playerId: 'p0', card: triggeringCard },
+    resolutions: [],
+    rowPicks: [],
   };
   return {
     ...dealt,
     phase: 'awaiting-row-pick' as const,
-    pendingRowPick,
+    pendingResolution,
   };
 }
 
@@ -52,11 +54,7 @@ describe('toCardChoiceState', () => {
     expect(view.round).toBe(state.round);
     expect(view.turn).toBe(state.turn);
     expect(view.playerCount).toBe(3);
-    expect(view.playerScores).toEqual({
-      p0: 0,
-      p1: 0,
-      p2: 0,
-    });
+    expect(view.playerScores).toEqual(state.players.map((p) => ({ id: p.id, score: 0, penaltyThisRound: 0 })));
     expect(view.turnHistory).toEqual([]);
     expect(view.initialBoardCards).toEqual(state.initialBoardCards);
   });
@@ -79,10 +77,10 @@ describe('toRowChoiceState', () => {
   it('includes triggeringCard and revealedThisTurn', () => {
     const state = setupAwaitingRowPick();
     const view = toRowChoiceState(state, 'p0');
-    expect(view.triggeringCard).toBe(state.pendingRowPick!.triggeringCard);
-    expect(view.revealedThisTurn).toEqual(state.pendingRowPick!.revealedThisTurn);
+    expect(view.triggeringCard).toBe(state.pendingResolution!.pendingRowPick!.card);
+    expect(view.revealedThisTurn).toEqual(state.pendingResolution!.sortedPlays);
     expect(view.board).toEqual(state.board);
-    expect(view.hand).toEqual(state.players[0].hand);
+    expect(view.hand).toEqual(state.players[0].hand.filter((card) => card !== view.triggeringCard));
     expect(view.playerCount).toBe(3);
   });
 
@@ -96,9 +94,9 @@ describe('toRowChoiceState', () => {
     expect(() => toRowChoiceState(state, 'p1')).toThrow('not the pending row picker');
   });
 
-  it('resolutionIndex is always 0', () => {
+  it('resolutionIndex reflects resolved cards', () => {
     const state = setupAwaitingRowPick();
     const view = toRowChoiceState(state, 'p0');
-    expect(view.resolutionIndex).toBe(0);
+    expect(view.resolutionIndex).toBe(state.pendingResolution!.nextIndex);
   });
 });

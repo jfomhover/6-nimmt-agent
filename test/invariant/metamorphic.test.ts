@@ -6,6 +6,7 @@ import {
   createGame,
   dealRound,
   resolveTurn,
+  applyRowPick,
   scoreRound,
   isGameOver,
   createDeck,
@@ -40,7 +41,9 @@ function playFullGame(playerIds: string[], gameSeed: string, strategySeed: strin
         playerId: p.id,
         card: strategy.pickCard(p.hand),
       }));
-      state = resolveTurn(state, plays, () => strategy.pickRow());
+      let resolution = resolveTurn(state, plays);
+      while (resolution.kind === 'needs-row-pick') resolution = applyRowPick(resolution.state, resolution.playerId, strategy.pickRow() as 0 | 1 | 2 | 3);
+      state = resolution.state;
     }
     state = scoreRound(state);
     rounds++;
@@ -148,7 +151,9 @@ describe('Serialization round-trip', () => {
         playerId: p.id,
         card: strategy.pickCard(p.hand),
       }));
-      state = resolveTurn(state, plays, () => strategy.pickRow());
+      let resolution = resolveTurn(state, plays);
+      while (resolution.kind === 'needs-row-pick') resolution = applyRowPick(resolution.state, resolution.playerId, strategy.pickRow() as 0 | 1 | 2 | 3);
+      state = resolution.state;
     }
 
     const roundTripped = JSON.parse(JSON.stringify(state));

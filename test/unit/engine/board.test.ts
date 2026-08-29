@@ -14,7 +14,7 @@ describe('determinePlacement', () => {
   it('card goes to closest lower tail', () => {
     const board = mkBoard([[10], [20], [30], [40]]);
     const result = determinePlacement(board, cn(35));
-    expect(result).toEqual({ rowIndex: 2, causedOverflow: false });
+    expect(result).toEqual({ kind: 'place', rowIndex: 2, causedOverflow: false });
   });
 
   it('returns must-pick-row when card < all tails', () => {
@@ -27,6 +27,7 @@ describe('determinePlacement', () => {
     const board = mkBoard([[3, 5, 10, 22, 33], [50], [70], [90]]);
     const result = determinePlacement(board, cn(40));
     expect(result).toEqual({
+      kind: 'place',
       rowIndex: 0,
       causedOverflow: true,
       collectedCards: [3, 5, 10, 22, 33].map(cn),

@@ -7,6 +7,7 @@ import {
   createGame,
   dealRound,
   resolveTurn,
+  applyRowPick,
   scoreRound,
   isGameOver,
   createPrng,
@@ -155,9 +156,11 @@ function playGameWithInvariantChecks(
         card: strategy.pickCard(p.hand),
       }));
 
-      state = resolveTurn(state, plays, (_playerId, _gs) => {
-        return strategy.pickRow();
-      });
+      let resolution = resolveTurn(state, plays);
+      while (resolution.kind === 'needs-row-pick') {
+        resolution = applyRowPick(resolution.state, resolution.playerId, strategy.pickRow());
+      }
+      state = resolution.state;
 
       checkAllInvariants(state);
       checkScoresMonotonicallyNonDecreasing(prevScores, state);
@@ -190,7 +193,11 @@ function playGameToCompletion(playerCount: number, gameSeed: string): GameState 
         card: strategy.pickCard(p.hand),
       }));
 
-      state = resolveTurn(state, plays, () => strategy.pickRow());
+      let resolution = resolveTurn(state, plays);
+      while (resolution.kind === 'needs-row-pick') {
+        resolution = applyRowPick(resolution.state, resolution.playerId, strategy.pickRow());
+      }
+      state = resolution.state;
     }
 
     state = scoreRound(state);

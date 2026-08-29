@@ -134,6 +134,11 @@ export const simulateCommand = new Command('simulate')
     }
 
     const games = parseInt(opts.games, 10);
+    if (!Number.isInteger(games) || games <= 0 || String(opts.games).trim() !== String(games)) {
+      outputError(fmt, 'INVALID_ARGUMENTS', `--games must be a positive integer, got '${opts.games}'.`);
+      process.exit(1);
+      return;
+    }
     const seed = opts.seed ?? randomUUID();
 
     // Dry run
