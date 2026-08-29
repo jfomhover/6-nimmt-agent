@@ -76,7 +76,6 @@ MCS-Prior leads MCS-100 by only 0.3 ELO points, so they are effectively tied at 
 - Game seeds and seat selection are deterministic from the competition seed.
 - ELO uses pairwise decomposition of multiplayer results and normalization by N−1.
 - Player-game statistics include only seats in games where the strategy was drawn.
-- The 250-game report remains available as an earlier preliminary sanity check: `competition-post-round10-250-report.md`.
 
 ## Verdict
 
