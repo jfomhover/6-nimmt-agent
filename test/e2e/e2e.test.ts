@@ -407,7 +407,7 @@ describe('E2E: MCP full lifecycle', () => {
       sessionId,
       expectedVersion: version,
       round: 1,
-      board: [[5], [15], [25], [35]],
+      board: [[1], [2], [3], [4]],
       hand: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
     });
     expect(isDomainError(rs)).toBe(false);
@@ -418,32 +418,40 @@ describe('E2E: MCP full lifecycle', () => {
     const rec = mgr.sessionRecommend({
       sessionId,
       hand: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-      board: [[5], [15], [25], [35]],
+      board: [[1], [2], [3], [4]],
     });
     expect(isDomainError(rec)).toBe(false);
     expect(rec).toHaveProperty('decision', 'card');
     const recCard = (rec as { recommendation: { card: number } }).recommendation.card;
     expect([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]).toContain(recCard);
 
-    // Resolve turn 1
-    const tr = mgr.turnResolved({
-      sessionId,
-      expectedVersion: version,
-      round: 1,
-      turn: 1,
-      plays: [
-        { playerId: 'p0', card: 10 },
-        { playerId: 'p1', card: 20 },
-      ],
-      resolutions: [
-        { playerId: 'p0', card: 10, rowIndex: 0, causedOverflow: false },
-        { playerId: 'p1', card: 20, rowIndex: 1, causedOverflow: false },
-      ],
-      boardAfter: [[5, 10], [15, 20], [25], [35]],
-    });
-    expect(isDomainError(tr)).toBe(false);
-    expect(tr).toHaveProperty('accepted', true);
-    version = (tr as { sessionVersion: number }).sessionVersion;
+    // Resolve all ten turns with a legal single-row progression.
+    let board = [[1], [2], [3], [4]];
+    for (let turn = 1; turn <= 10; turn++) {
+      const card = turn * 10;
+      const opponentCard = card + 1;
+      const firstOverflow = board[3].length === 5;
+      const firstCollected = firstOverflow ? [...board[3]] : undefined;
+      board[3] = firstOverflow ? [card] : [...board[3], card];
+      const secondOverflow = board[3].length === 5;
+      const secondCollected = secondOverflow ? [...board[3]] : undefined;
+      board[3] = secondOverflow ? [opponentCard] : [...board[3], opponentCard];
+      const tr = mgr.turnResolved({
+        sessionId,
+        expectedVersion: version,
+        round: 1,
+        turn,
+        plays: [{ playerId: 'p0', card }, { playerId: 'p1', card: opponentCard }],
+        resolutions: [
+          { playerId: 'p0', card, rowIndex: 3, causedOverflow: firstOverflow, ...(firstCollected ? { collectedCards: firstCollected } : {}) },
+          { playerId: 'p1', card: opponentCard, rowIndex: 3, causedOverflow: secondOverflow, ...(secondCollected ? { collectedCards: secondCollected } : {}) },
+        ],
+        boardAfter: board,
+      });
+      expect(isDomainError(tr)).toBe(false);
+      expect(tr).toHaveProperty('accepted', true);
+      version = (tr as { sessionVersion: number }).sessionVersion;
+    }
 
     // Round ended
     const re = mgr.roundEnded({

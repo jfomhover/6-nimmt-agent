@@ -52,6 +52,34 @@ function startRound(mgr: SessionManager, sessionId: string, version: number, rou
   return result as SessionResult;
 }
 
+function completeRound(mgr: SessionManager, sessionId: string, version: number, round = 1): number {
+  const started = mgr.roundStarted({ sessionId, expectedVersion: version, round, board: [[1], [2], [3], [4]], hand: makeHand() }) as SessionResult;
+  let currentVersion = started.sessionVersion;
+  let board = [[1], [2], [3], [4]];
+  for (let turn = 1; turn <= 10; turn++) {
+    const card = makeHand()[turn - 1];
+    const opponentCard = card + 1;
+    const firstOverflow = board[3].length === 5;
+    const firstCollected = firstOverflow ? [...board[3]] : undefined;
+    board[3] = firstOverflow ? [card] : [...board[3], card];
+    const secondOverflow = board[3].length === 5;
+    const secondCollected = secondOverflow ? [...board[3]] : undefined;
+    board[3] = secondOverflow ? [opponentCard] : [...board[3], opponentCard];
+    const result = mgr.turnResolved({
+      sessionId, expectedVersion: currentVersion, round, turn,
+      plays: [{ playerId: 'p0', card }, { playerId: 'p1', card: opponentCard }],
+      resolutions: [
+        { playerId: 'p0', card, rowIndex: 3, causedOverflow: firstOverflow, ...(firstCollected ? { collectedCards: firstCollected } : {}) },
+        { playerId: 'p1', card: opponentCard, rowIndex: 3, causedOverflow: secondOverflow, ...(secondCollected ? { collectedCards: secondCollected } : {}) },
+      ],
+      boardAfter: board,
+    }) as SessionResult;
+    expect(isDomainError(result)).toBe(false);
+    currentVersion = result.sessionVersion;
+  }
+  return currentVersion;
+}
+
 function resolveTurn(
   mgr: SessionManager,
   sessionId: string,
@@ -238,7 +266,7 @@ describe('turnResolved', () => {
     // Replay same turn with same data but current version
     const result = mgr.turnResolved({
       sessionId: session.sessionId,
-      expectedVersion: 2,
+       expectedVersion: 2,
       round: 1,
       turn: 1,
       plays: [
@@ -262,7 +290,7 @@ describe('turnResolved', () => {
     // Same turn but different plays
     const result = mgr.turnResolved({
       sessionId: session.sessionId,
-      expectedVersion: 2,
+       expectedVersion: 2,
       round: 1,
       turn: 1,
       plays: [
@@ -306,12 +334,11 @@ describe('roundEnded', () => {
 
   it('transitions to awaiting-round when no game-over', () => {
     const session = createTestSession(mgr);
-    startRound(mgr, session.sessionId, 0);
-    resolveTurn(mgr, session.sessionId, 1, 1, 1, 10);
+    const completeVersion = completeRound(mgr, session.sessionId, 0);
 
     const result = mgr.roundEnded({
       sessionId: session.sessionId,
-      expectedVersion: 2,
+      expectedVersion: completeVersion,
       round: 1,
       scores: [{ playerId: 'p0', score: 5 }, { playerId: 'p1', score: 3 }],
     }) as SessionResult;
@@ -323,12 +350,11 @@ describe('roundEnded', () => {
 
   it('transitions to game-over when score ≥ 66', () => {
     const session = createTestSession(mgr);
-    startRound(mgr, session.sessionId, 0);
-    resolveTurn(mgr, session.sessionId, 1, 1, 1, 10);
+    const completeVersion = completeRound(mgr, session.sessionId, 0);
 
     const result = mgr.roundEnded({
       sessionId: session.sessionId,
-      expectedVersion: 2,
+      expectedVersion: completeVersion,
       round: 1,
       scores: [{ playerId: 'p0', score: 66 }, { playerId: 'p1', score: 10 }],
     }) as Record<string, unknown>;
@@ -340,12 +366,11 @@ describe('roundEnded', () => {
 
   it('returns finalScores ranked when game over', () => {
     const session = createTestSession(mgr);
-    startRound(mgr, session.sessionId, 0);
-    resolveTurn(mgr, session.sessionId, 1, 1, 1, 10);
+    const completeVersion = completeRound(mgr, session.sessionId, 0);
 
     const result = mgr.roundEnded({
       sessionId: session.sessionId,
-      expectedVersion: 2,
+      expectedVersion: completeVersion,
       round: 1,
       scores: [{ playerId: 'p0', score: 70 }, { playerId: 'p1', score: 10 }],
     }) as { finalScores: { playerId: string; score: number }[] };
@@ -602,11 +627,7 @@ describe('full lifecycle', () => {
     version = endR1.sessionVersion as number;
 
     // Round 2 → immediate game over
-    const r2 = startRound(mgr, session.sessionId, version, 2);
-    version = r2.sessionVersion;
-
-    const t1r2 = resolveTurn(mgr, session.sessionId, version, 2, 1, 10);
-    version = t1r2.sessionVersion;
+    version = completeRound(mgr, session.sessionId, version, 2);
 
     const endR2 = mgr.roundEnded({
       sessionId: session.sessionId,

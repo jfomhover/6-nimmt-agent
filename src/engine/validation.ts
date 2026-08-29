@@ -23,6 +23,7 @@ function validateBase(state: unknown, rowDecision: boolean): ValidationResult {
   if (!Array.isArray(value.turnHistory)) errors.push('turnHistory must be an array.');
   if (!Array.isArray(value.initialBoardCards) || value.initialBoardCards.length !== 4 || value.initialBoardCards.some((card) => !isValidCardNumber(card))) errors.push('initialBoardCards must contain four valid cards.');
   if (rowDecision && (!Array.isArray(value.revealedThisTurn) || value.revealedThisTurn.some((play) => !play || typeof play.playerId !== 'string' || !isValidCardNumber(play.card)))) errors.push('revealedThisTurn must contain valid public plays.');
+  if (rowDecision && (!Number.isInteger(value.resolutionIndex) || (value.resolutionIndex as number) < 0)) errors.push('resolutionIndex must be a non-negative integer.');
   if (!Number.isInteger(value.playerCount) || !Number.isInteger(value.round) || !Number.isInteger(value.turn)) errors.push('playerCount, round, and turn must be integers.');
   const rows = boardRows(value.board);
   if (!rows || rows.length !== 4) errors.push('Board must have exactly 4 rows.');
@@ -48,6 +49,7 @@ function validateBase(state: unknown, rowDecision: boolean): ValidationResult {
   if (typeof value.turn === 'number' && (value.turn < 1 || value.turn > 10)) errors.push('Turn must be 1–10.');
   if (!rowDecision && (value.hand?.length ?? 0) === 0) errors.push('Hand must be non-empty for card choice.');
   if (rowDecision && !isValidCardNumber(value.triggeringCard as number)) errors.push('Row choice requires a valid triggeringCard.');
+  if (rowDecision && Array.isArray(value.hand) && value.hand.includes(value.triggeringCard as number)) errors.push('Row-choice hand must exclude the triggering card.');
   if (typeof value.turn === 'number' && (value.hand?.length ?? 0) !== 11 - value.turn && value.turn <= 10) warnings.push(`Hand size ${value.hand?.length ?? 0} differs from expected ${11 - value.turn}.`);
   return { valid: errors.length === 0, errors, warnings };
 }
@@ -56,6 +58,9 @@ export function validateCardChoiceState(state: CardChoiceState): ValidationResul
 export function validateRowChoiceState(state: RowChoiceState): ValidationResult { return validateBase(state, true); }
 export function boardFromJson(rows: unknown): Board {
   const parsed = boardRows(rows);
-  if (!parsed || parsed.length !== 4 || parsed.some((r) => !Array.isArray(r))) throw new Error('Invalid board.');
+  if (!parsed || parsed.length !== 4 || parsed.some((r) => !Array.isArray(r) || r.length < 1 || r.length > 5)) throw new Error('Invalid board.');
+  const cards = parsed.flat();
+  if (cards.some((card) => !isValidCardNumber(card as number)) || new Set(cards).size !== cards.length) throw new Error('Invalid board cards.');
+  if (parsed.some((row) => row.some((card, index) => index > 0 && (row[index - 1] as number) >= (card as number)))) throw new Error('Board rows must be strictly increasing.');
   return { rows: parsed as unknown as Board['rows'] };
 }

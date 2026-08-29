@@ -166,6 +166,7 @@ export async function playGame(page: Page, opts: PlayOptions): Promise<GameResul
   const initialBoard = initialState.board.rows.map(r => [...r]);
   let roundStartBoard = initialBoard; // snapshot of board at round start (for initialBoardCards)
   let lastPlayedCard: CardNumber | undefined; // track last card we played (needed for row pick context)
+  let lastNotifiedResolutionKey: string | undefined;
   collector?.startRound(1, initialBoard, initialHand);
   strategy.onRoundStart?.({
     round: 1,
@@ -260,6 +261,7 @@ export async function playGame(page: Page, opts: PlayOptions): Promise<GameResul
       const hand = state.hand.map(h => h.cardValue as number);
       const board = state.board.rows.map(r => [...r]);
       roundStartBoard = board; // save for initialBoardCards in strategy state
+      lastNotifiedResolutionKey = undefined;
       collector?.startRound(currentRound, board, hand);
       strategy.onRoundStart?.({
         round: currentRound,
@@ -513,13 +515,15 @@ export async function playGame(page: Page, opts: PlayOptions): Promise<GameResul
           // When action is pickRow, hand already decreased from the prior playCard,
           // so inferTurn() is +1 ahead — use the previous turn number instead.
           const resolvedTurn = action === 'pickRow' ? Math.max(1, currentTurn - 1) : currentTurn;
-          strategy.onTurnResolved({
+          const resolutionKey = `${currentRound}:${resolvedTurn}`;
+          if (resolutionKey !== lastNotifiedResolutionKey) strategy.onTurnResolved({
             turn: resolvedTurn,
             plays,
             resolutions: [],
             rowPicks: [],
             boardAfter: postState.board.rows.map(r => [...r]) as unknown as CardNumber[][],
           });
+          lastNotifiedResolutionKey = resolutionKey;
         }
       }
     } catch { /* non-critical — don't crash if post-read fails */ }

@@ -38,6 +38,7 @@ interface Session {
   scores: { playerId: string; score: number }[];
   roundPenalties: Record<string, number>;
   turnHistory: TurnResolution[];
+  turnPlayerIds?: string[];
   lastEvent: string;
   /** Serialised last turn_resolved payload for duplicate detection */
   lastTurnKey?: string;
@@ -233,6 +234,7 @@ export class SessionManager {
       scores: [],
       roundPenalties: {},
       turnHistory: [],
+      turnPlayerIds: undefined,
       lastEvent: 'start_session',
     };
 
@@ -330,6 +332,7 @@ export class SessionManager {
     session.phase = 'in-round';
     session.version++;
     session.turnHistory = [];
+    session.turnPlayerIds = undefined;
     session.roundPenalties = {};
     session.lastEvent = 'round_started';
     session.lastTurnKey = undefined;
@@ -410,6 +413,11 @@ export class SessionManager {
     if (!Array.isArray(plays) || plays.length !== session.playerCount || new Set(plays.map(p => p.playerId)).size !== plays.length) {
       return errors.domainError('INVALID_RESOLUTIONS', 'plays must contain exactly one play per player.', { recoverable: true, suggestedAction: 'none' });
     }
+    const playerIds = plays.map((play) => play.playerId).sort();
+    if (!playerIds.includes(session.playerId)) return errors.domainError('INVALID_RESOLUTIONS', 'plays must include the session player.', { recoverable: true, suggestedAction: 'none' });
+    if (session.turnPlayerIds && JSON.stringify(playerIds) !== JSON.stringify(session.turnPlayerIds)) {
+      return errors.domainError('INVALID_RESOLUTIONS', 'Player identities must remain consistent across turns.', { recoverable: true, suggestedAction: 'resync_session' });
+    }
     const expectedCards = new Set(plays.map(p => p.card));
     if (!Array.isArray(resolutions) || resolutions.length !== plays.length || resolutions.some(r => !expectedCards.has(r.card))) {
       return errors.domainError('INVALID_RESOLUTIONS', 'Resolutions must contain one entry for every played card.', { recoverable: true, suggestedAction: 'none' });
@@ -457,6 +465,7 @@ export class SessionManager {
     // Update session state
     session.turn = turn;
     session.turnHistory.push(resolution);
+    session.turnPlayerIds ??= playerIds;
     session.version++;
     session.phase = 'in-round';
     session.lastEvent = 'turn_resolved';
@@ -493,6 +502,7 @@ export class SessionManager {
     if (!session) return errors.unknownSession(sessionId);
     if (session.version !== expectedVersion) return errors.versionMismatch(expectedVersion, session.version);
     if (session.phase !== 'in-round') return errors.invalidPhase(session.phase, 'in-round');
+    if (session.turn !== 10) return errors.domainError('INVALID_TURN', `Cannot end round before turn 10 (current turn: ${session.turn}).`, { recoverable: true, suggestedAction: 'retry_with_version' });
 
     if (round !== session.round) {
       return errors.domainError('INVALID_ROUND', `Expected round ${session.round}, got ${round}.`, {
@@ -630,7 +640,7 @@ export class SessionManager {
           triggeringCard: (triggeringCard ?? 0) as CardNumber,
           revealedThisTurn: (revealedThisTurn ?? []) as unknown as RowChoiceState['revealedThisTurn'],
           resolutionIndex: resolutionIndex ?? 0,
-          hand: hand as unknown as readonly CardNumber[],
+          hand: hand.filter((card) => card !== triggeringCard) as unknown as readonly CardNumber[],
           playerScores: session.scores.map(s => ({ id: s.playerId, score: s.score, penaltyThisRound: session.roundPenalties[s.playerId] ?? 0 })),
           playerCount: session.playerCount,
           round: session.round,
@@ -741,6 +751,7 @@ export class SessionManager {
     session.scores = [...scores];
     session.roundPenalties = {};
     session.turnHistory = [...history];
+    session.turnPlayerIds = history[0]?.plays.map((play) => play.playerId).sort();
     session.phase = turn >= 1 ? 'in-round' : 'awaiting-round';
     if (turn === 0) {
       try { session.strategy.onRoundStart?.({ round, hand: hand as CardNumber[], board: toBoard(board) }); } catch { /* non-fatal */ }
