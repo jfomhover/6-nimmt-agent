@@ -1,0 +1,173 @@
+{
+  "meta": {
+    "command": "compete",
+    "version": "1.0.0",
+    "timestamp": "2026-08-29T19:30:49.013Z",
+    "durationMs": 3947344
+  },
+  "gamesPlayed": 1000,
+  "pool": [
+    "mcs-prior:mcPerCard=100",
+    "mcs:mcPerCard=100",
+    "mcs:mcPerCard=50",
+    "bayesian-simple",
+    "dummy-max",
+    "dummy-min",
+    "random"
+  ],
+  "playerRange": {
+    "min": 3,
+    "max": 6
+  },
+  "seed": "competition-post-round10-2026-08-29",
+  "eloConfig": {
+    "initialRating": 1500,
+    "K": 32,
+    "D": 400,
+    "normalization": "├╖(NΓêÆ1)"
+  },
+  "results": [
+    {
+      "strategy": "mcs:mcPerCard=50",
+      "seatIndices": [],
+      "playerIds": [],
+      "playerCount": 0,
+      "wins": 219,
+      "winRate": 0.35436893203883496,
+      "avgScore": 36.23139158576052,
+      "avgWinningScore": 22.87214611872146,
+      "medianScore": 33.5,
+      "minScore": 0,
+      "maxScore": 91,
+      "scoreStdDev": 19.06758169056244
+    },
+    {
+      "strategy": "mcs-prior:mcPerCard=100",
+      "seatIndices": [],
+      "playerIds": [],
+      "playerCount": 0,
+      "wins": 229,
+      "winRate": 0.35725429017160687,
+      "avgScore": 38.605304212168484,
+      "avgWinningScore": 25.580786026200872,
+      "medianScore": 35,
+      "minScore": 0,
+      "maxScore": 113,
+      "scoreStdDev": 19.6814388657916
+    },
+    {
+      "strategy": "random",
+      "seatIndices": [],
+      "playerIds": [],
+      "playerCount": 0,
+      "wins": 30,
+      "winRate": 0.046012269938650305,
+      "avgScore": 61.93098159509202,
+      "avgWinningScore": 35.266666666666666,
+      "medianScore": 67,
+      "minScore": 8,
+      "maxScore": 118,
+      "scoreStdDev": 18.780451516381888
+    },
+    {
+      "strategy": "dummy-min",
+      "seatIndices": [],
+      "playerIds": [],
+      "playerCount": 0,
+      "wins": 17,
+      "winRate": 0.02689873417721519,
+      "avgScore": 65.15189873417721,
+      "avgWinningScore": 28.235294117647058,
+      "medianScore": 69,
+      "minScore": 1,
+      "maxScore": 112,
+      "scoreStdDev": 19.115795448667964
+    },
+    {
+      "strategy": "bayesian-simple",
+      "seatIndices": [],
+      "playerIds": [],
+      "playerCount": 0,
+      "wins": 156,
+      "winRate": 0.26666666666666666,
+      "avgScore": 40.70598290598291,
+      "avgWinningScore": 22.403846153846153,
+      "medianScore": 38,
+      "minScore": 0,
+      "maxScore": 105,
+      "scoreStdDev": 21.621508326767923
+    },
+    {
+      "strategy": "dummy-max",
+      "seatIndices": [],
+      "playerIds": [],
+      "playerCount": 0,
+      "wins": 78,
+      "winRate": 0.12440191387559808,
+      "avgScore": 49.42424242424242,
+      "avgWinningScore": 25.294871794871796,
+      "medianScore": 48,
+      "minScore": 0,
+      "maxScore": 103,
+      "scoreStdDev": 20.81218326157733
+    },
+    {
+      "strategy": "mcs:mcPerCard=100",
+      "seatIndices": [],
+      "playerIds": [],
+      "playerCount": 0,
+      "wins": 291,
+      "winRate": 0.41512125534950073,
+      "avgScore": 32.12696148359486,
+      "avgWinningScore": 20.759450171821307,
+      "medianScore": 29,
+      "minScore": 0,
+      "maxScore": 87,
+      "scoreStdDev": 17.804041136261272
+    }
+  ],
+  "elo": [
+    {
+      "strategy": "mcs:mcPerCard=50",
+      "rating": 1658.2388783343736,
+      "gamesPlayed": 482,
+      "ratingStdDev": 30.27215662554012
+    },
+    {
+      "strategy": "mcs-prior:mcPerCard=100",
+      "rating": 1703.9223498968202,
+      "gamesPlayed": 503,
+      "ratingStdDev": 33.842889996343274
+    },
+    {
+      "strategy": "random",
+      "rating": 1237.884544354386,
+      "gamesPlayed": 506,
+      "ratingStdDev": 13.900944276163049
+    },
+    {
+      "strategy": "dummy-min",
+      "rating": 1159.017647534351,
+      "gamesPlayed": 498,
+      "ratingStdDev": 24.180726484796224
+    },
+    {
+      "strategy": "bayesian-simple",
+      "rating": 1518.986268114651,
+      "gamesPlayed": 456,
+      "ratingStdDev": 25.964042824392514
+    },
+    {
+      "strategy": "dummy-max",
+      "rating": 1365.7874264260677,
+      "gamesPlayed": 488,
+      "ratingStdDev": 34.493108529164665
+    },
+    {
+      "strategy": "mcs:mcPerCard=100",
+      "rating": 1704.2480633497146,
+      "gamesPlayed": 525,
+      "ratingStdDev": 21.23418181842935
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-# Competition Report: Post-Round-10 Regression Check
+# Competition Report: Post-Round-10 Preliminary Regression Check
 
 > **Date:** 2026-08-29  
 > **Code state:** PR #22, commit `61062f9` plus the subsequent passing test/doc fixes  
@@ -8,7 +8,7 @@
 > **ELO:** Standard chess-style ELO, initial 1500, K=32, D=400, normalized by N−1  
 > **Player range:** 3–6 per game, random and deterministic from the seed
 
-This is a post-fix regression check against [the previous 1,000-game report](competition-1000-report.md). The pool, strategy options, player range, and ELO settings are identical. The sample is smaller, so the absolute ELO values and rank deltas should not be treated as a statistically equivalent replacement for the 1,000-game baseline.
+This was an early post-fix regression check against [the previous 1,000-game report](competition-1000-report.md). The pool, strategy options, player range, and ELO settings are identical. It has now been superseded by the complete [post-Round-10 1,000-game report](competition-post-round10-1000-report.md).
 
 ---
 
