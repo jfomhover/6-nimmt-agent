@@ -13,10 +13,18 @@ function boardRows(board: unknown): unknown[][] | undefined {
   return undefined;
 }
 
-function validateBase(state: CardChoiceState | RowChoiceState, rowDecision: boolean): ValidationResult {
+function validateBase(state: unknown, rowDecision: boolean): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
-  const rows = boardRows(state.board);
+  if (!state || typeof state !== 'object') return { valid: false, errors: ['State must be an object.'], warnings };
+  const value = state as Partial<CardChoiceState & RowChoiceState>;
+  if (!Array.isArray(value.hand)) errors.push('hand must be an array.');
+  if (!Array.isArray(value.playerScores) || value.playerScores.some((score) => !score || typeof score !== 'object' || typeof score.id !== 'string' || typeof score.score !== 'number' || typeof score.penaltyThisRound !== 'number')) errors.push('playerScores must be an array of { id, score, penaltyThisRound }.');
+  if (!Array.isArray(value.turnHistory)) errors.push('turnHistory must be an array.');
+  if (!Array.isArray(value.initialBoardCards) || value.initialBoardCards.length !== 4 || value.initialBoardCards.some((card) => !isValidCardNumber(card))) errors.push('initialBoardCards must contain four valid cards.');
+  if (rowDecision && (!Array.isArray(value.revealedThisTurn) || value.revealedThisTurn.some((play) => !play || typeof play.playerId !== 'string' || !isValidCardNumber(play.card)))) errors.push('revealedThisTurn must contain valid public plays.');
+  if (!Number.isInteger(value.playerCount) || !Number.isInteger(value.round) || !Number.isInteger(value.turn)) errors.push('playerCount, round, and turn must be integers.');
+  const rows = boardRows(value.board);
   if (!rows || rows.length !== 4) errors.push('Board must have exactly 4 rows.');
   const cards: number[] = [];
   for (const [i, row] of (rows ?? []).entries()) {
@@ -30,17 +38,17 @@ function validateBase(state: CardChoiceState | RowChoiceState, rowDecision: bool
       }
     }
   }
-  for (const card of state.hand) {
+  for (const card of value.hand ?? []) {
     if (!isValidCardNumber(card)) errors.push(`Hand has invalid card ${card}.`);
     cards.push(card);
   }
   if (new Set(cards).size !== cards.length) errors.push('Duplicate cards exist across hand and board.');
-  if (state.playerCount < 2 || state.playerCount > 10) errors.push('Player count must be 2–10.');
-  if (state.round < 1) errors.push('Round must be at least 1.');
-  if (state.turn < 1 || state.turn > 10) errors.push('Turn must be 1–10.');
-  if (!rowDecision && state.hand.length === 0) errors.push('Hand must be non-empty for card choice.');
-  if (rowDecision && !isValidCardNumber((state as RowChoiceState).triggeringCard)) errors.push('Row choice requires a valid triggeringCard.');
-  if (state.hand.length !== 11 - state.turn && state.turn <= 10) warnings.push(`Hand size ${state.hand.length} differs from expected ${11 - state.turn}.`);
+  if (typeof value.playerCount === 'number' && (value.playerCount < 2 || value.playerCount > 10)) errors.push('Player count must be 2–10.');
+  if (typeof value.round === 'number' && value.round < 1) errors.push('Round must be at least 1.');
+  if (typeof value.turn === 'number' && (value.turn < 1 || value.turn > 10)) errors.push('Turn must be 1–10.');
+  if (!rowDecision && (value.hand?.length ?? 0) === 0) errors.push('Hand must be non-empty for card choice.');
+  if (rowDecision && !isValidCardNumber(value.triggeringCard as number)) errors.push('Row choice requires a valid triggeringCard.');
+  if (typeof value.turn === 'number' && (value.hand?.length ?? 0) !== 11 - value.turn && value.turn <= 10) warnings.push(`Hand size ${value.hand?.length ?? 0} differs from expected ${11 - value.turn}.`);
   return { valid: errors.length === 0, errors, warnings };
 }
 

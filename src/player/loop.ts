@@ -397,7 +397,7 @@ export async function playGame(page: Page, opts: PlayOptions): Promise<GameResul
       // fallback to cheapest row (fewest cattle heads) if strategy throws.
       let rowIdx: 0 | 1 | 2 | 3;
       try {
-        const rowState = buildRowChoiceState(state, playerCount, currentRound, currentTurn, lastPlayedCard);
+         const rowState = buildRowChoiceState(state, playerCount, currentRound, Math.max(1, currentTurn - 1), roundStartBoard, lastPlayedCard);
         rowIdx = strategy.chooseRow(rowState);
       } catch {
         rowIdx = findCheapestRow(state.board);
@@ -534,16 +534,16 @@ function buildCardChoiceState(
   roundStartBoard: number[][],
 ): CardChoiceState {
   const board = { rows: state.board.rows as unknown as readonly [readonly CardNumber[], readonly CardNumber[], readonly CardNumber[], readonly CardNumber[]] };
-  const initialBoard = { rows: roundStartBoard as unknown as readonly [readonly CardNumber[], readonly CardNumber[], readonly CardNumber[], readonly CardNumber[]] };
+  const initialBoardCards = roundStartBoard.map((row) => row[0]) as CardNumber[];
   return {
     hand: state.hand.map(h => h.cardValue),
     board,
-    playerScores: state.scores,
+    playerScores: Object.entries(state.scores).map(([id, score]) => ({ id, score, penaltyThisRound: 0 })),
     playerCount,
     round,
     turn, // already 1-based from inferTurn (11 - handSize)
     turnHistory: [],
-    initialBoardCards: initialBoard,
+    initialBoardCards,
   };
 }
 
@@ -552,6 +552,7 @@ function buildRowChoiceState(
   playerCount: number,
   round: number,
   turn: number,
+  roundStartBoard: number[][],
   lastPlayedCard?: CardNumber,
 ): RowChoiceState {
   const board = { rows: state.board.rows as unknown as readonly [readonly CardNumber[], readonly CardNumber[], readonly CardNumber[], readonly CardNumber[]] };
@@ -562,12 +563,12 @@ function buildRowChoiceState(
     triggeringCard: lastPlayedCard ?? (() => { throw new Error('Cannot build row-choice state without the triggering card.'); })(),
     revealedThisTurn: [],
     resolutionIndex: 0,
-    hand: state.hand.map(h => h.cardValue),
-    playerScores: state.scores,
+    hand: state.hand.map(h => h.cardValue).filter((card) => card !== lastPlayedCard),
+    playerScores: Object.entries(state.scores).map(([id, score]) => ({ id, score, penaltyThisRound: 0 })),
     playerCount,
     round,
     turn, // already 1-based from inferTurn
     turnHistory: [],
-    initialBoardCards: state.board.rows.map((row) => row[0]) as CardNumber[],
+    initialBoardCards: roundStartBoard.map((row) => row[0]) as CardNumber[],
   };
 }

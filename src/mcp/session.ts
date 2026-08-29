@@ -61,25 +61,41 @@ function fewestHeadsRow(board: number[][]): 0 | 1 | 2 | 3 {
   return best as 0 | 1 | 2 | 3;
 }
 
-function computeBoardAfter(boardBefore: number[][], resolutions: { rowIndex: number; card: number; causedOverflow: boolean; collectedCards?: number[] }[], rowPicks: { rowIndex: number; collectedCards: number[] }[]): number[][] | undefined {
+function computeBoardAfter(
+  boardBefore: number[][],
+  plays: { playerId: string; card: number }[],
+  resolutions: { playerId: string; rowIndex: number; card: number; causedOverflow: boolean; collectedCards?: number[] }[],
+  rowPicks: { playerId: string; rowIndex: number; collectedCards: number[] }[],
+): number[][] | undefined {
   const board = boardBefore.map((row) => [...row]);
-  for (const resolution of [...resolutions].sort((a, b) => a.card - b.card)) {
+  const playByCard = new Map(plays.map((play) => [play.card, play.playerId]));
+  const sorted = [...resolutions].sort((a, b) => a.card - b.card);
+  if (new Set(plays.map((play) => play.card)).size !== plays.length || new Set(resolutions.map((resolution) => resolution.card)).size !== resolutions.length) return undefined;
+  if (resolutions.length !== plays.length || sorted.some((resolution) => !isValidCard(resolution.card) || playByCard.get(resolution.card) !== resolution.playerId)) return undefined;
+  for (const resolution of sorted) {
     if (resolution.rowIndex < 0 || resolution.rowIndex > 3 || !Number.isInteger(resolution.rowIndex)) return undefined;
     const row = board[resolution.rowIndex];
-    const pick = rowPicks.find((p) => p.rowIndex === resolution.rowIndex && p.collectedCards.join(',') === (resolution.collectedCards ?? []).join(','));
-    if (pick && !resolution.causedOverflow) {
-      if (JSON.stringify(pick.collectedCards) !== JSON.stringify(row)) return undefined;
+    const pick = rowPicks.find((p) => p.playerId === resolution.playerId && p.rowIndex === resolution.rowIndex);
+    const eligibleRow = board.reduce((best, candidate, index) => candidate[candidate.length - 1] < resolution.card && (best === -1 || candidate[candidate.length - 1] > board[best][board[best].length - 1]) ? index : best, -1);
+    if (eligibleRow === -1) {
+      if (!pick || resolution.causedOverflow || JSON.stringify(pick.collectedCards) !== JSON.stringify(row) || JSON.stringify(resolution.collectedCards ?? []) !== JSON.stringify(row)) return undefined;
       board[resolution.rowIndex] = [resolution.card];
+    } else if (pick) {
+      return undefined;
+    } else if (resolution.rowIndex !== eligibleRow) {
+      return undefined;
     } else if (resolution.causedOverflow || row.length >= 5) {
-      if (row.length !== 5 || JSON.stringify(resolution.collectedCards ?? []) !== JSON.stringify(row)) return undefined;
+      if (row.length !== 5 || !resolution.causedOverflow || JSON.stringify(resolution.collectedCards ?? []) !== JSON.stringify(row)) return undefined;
       board[resolution.rowIndex] = [resolution.card];
     } else {
-      if (row.length >= 5 || resolution.card <= row[row.length - 1]) return undefined;
+      if (row.length >= 5 || resolution.causedOverflow || resolution.collectedCards) return undefined;
       board[resolution.rowIndex].push(resolution.card);
     }
   }
+  if (rowPicks.some((pick) => !sorted.some((resolution) => resolution.playerId === pick.playerId && resolution.rowIndex === pick.rowIndex && JSON.stringify(resolution.collectedCards ?? []) === JSON.stringify(pick.collectedCards)))) return undefined;
   return board;
 }
+
 
 function isValidCard(c: number): boolean {
   return Number.isInteger(c) && c >= 1 && c <= 104;
@@ -135,6 +151,19 @@ function coerceScores(input: unknown): { playerId: string; score: number }[] | u
     }
     return scores;
   }
+  return undefined;
+}
+
+function validateVisibleSnapshot(board: number[][], hand: number[]): string | undefined {
+  if (board.length !== 4) return 'board must have exactly 4 rows';
+  const cards = [...board.flat(), ...hand];
+  if (board.some((row) => !Array.isArray(row) || row.length < 1 || row.length > 5)) return 'board rows must contain 1–5 cards';
+  for (const row of board) {
+    for (let i = 1; i < row.length; i++) if (!isValidCard(row[i]) || row[i - 1] >= row[i]) return 'board rows must contain increasing valid cards';
+    if (row.some((card) => !isValidCard(card))) return 'board contains an invalid card';
+  }
+  if (hand.some((card) => !isValidCard(card))) return 'hand contains an invalid card';
+  if (new Set(cards).size !== cards.length) return 'snapshot contains duplicate cards';
   return undefined;
 }
 
@@ -237,7 +266,6 @@ export class SessionManager {
         details: { received: typeof params.board },
       });
     }
-
     const session = this.sessions.get(sessionId);
     if (!session) return errors.unknownSession(sessionId);
     if (session.version !== expectedVersion) return errors.versionMismatch(expectedVersion, session.version);
@@ -271,10 +299,14 @@ export class SessionManager {
           });
         }
       }
+      if (board[i].length > 5) return errors.domainError('INVALID_BOARD', `Board row ${i} cannot contain more than 5 cards.`, { recoverable: false, suggestedAction: 'none' });
+      for (let j = 1; j < board[i].length; j++) {
+        if (board[i][j - 1] >= board[i][j]) return errors.domainError('INVALID_BOARD', `Board row ${i} must be strictly increasing.`, { recoverable: false, suggestedAction: 'none' });
+      }
     }
 
     // Validate hand
-    if (!Array.isArray(hand) || hand.length === 0) {
+    if (!Array.isArray(hand) || hand.length !== 10) {
       return errors.domainError('INVALID_HAND', 'Hand must be a non-empty array.', {
         recoverable: false, suggestedAction: 'none',
       });
@@ -286,6 +318,8 @@ export class SessionManager {
         });
       }
     }
+    const visibleCards = [...board.flat(), ...hand];
+    if (new Set(visibleCards).size !== visibleCards.length) return errors.domainError('INVALID_HAND', 'Hand and board contain duplicate cards.', { recoverable: false, suggestedAction: 'none' });
 
     // Update session
     session.board = board.map(r => [...r]);
@@ -380,7 +414,10 @@ export class SessionManager {
     if (!Array.isArray(resolutions) || resolutions.length !== plays.length || resolutions.some(r => !expectedCards.has(r.card))) {
       return errors.domainError('INVALID_RESOLUTIONS', 'Resolutions must contain one entry for every played card.', { recoverable: true, suggestedAction: 'none' });
     }
-    const computedBoard = computeBoardAfter(session.board, resolutions, rowPicks ?? []);
+    if (plays.some((play) => !isValidCard(play.card)) || resolutions.some((resolution) => !isValidCard(resolution.card))) {
+      return errors.domainError('INVALID_RESOLUTIONS', 'Plays and resolutions must contain valid card numbers.', { recoverable: true, suggestedAction: 'none' });
+    }
+    const computedBoard = computeBoardAfter(session.board, plays, resolutions, rowPicks ?? []);
     if (!computedBoard) return errors.domainError('INVALID_RESOLUTIONS', 'Resolution contains an invalid row index.', { recoverable: true, suggestedAction: 'none' });
     if (boardAfter && JSON.stringify(boardAfter) !== JSON.stringify(computedBoard)) {
       return errors.domainError('INVALID_RESOLUTIONS', 'boardAfter does not match the computed board.', { recoverable: true, suggestedAction: 'resync_session' });
@@ -410,7 +447,6 @@ export class SessionManager {
         session.roundPenalties[resolution.playerId] = (session.roundPenalties[resolution.playerId] ?? 0) + resolution.collectedCards.reduce((sum, card) => sum + cattleHeads(card), 0);
       }
     }
-
     // Remove played card from hand
     const myPlay = plays.find(p => p.playerId === session.playerId);
     if (myPlay) {
@@ -533,6 +569,8 @@ export class SessionManager {
         details: { received: typeof params.board },
       });
     }
+    const snapshotError = validateVisibleSnapshot(board, hand);
+    if (snapshotError) return errors.stateMismatch(`Invalid agent snapshot: ${snapshotError}.`);
 
     const session = this.sessions.get(sessionId);
     if (!session) return errors.unknownSession(sessionId);
@@ -550,21 +588,23 @@ export class SessionManager {
     // Drift detection
     const warnings: string[] = [];
     const handDiff = symmetricDiff(new Set(hand), new Set(session.hand));
-    const boardDiff = JSON.stringify(board) === JSON.stringify(session.board) ? 0 : board.flat().filter((c, i) => c !== session.board.flat()[i]).length;
-    const totalDrift = handDiff + boardDiff;
+    const sessionFlat = session.board.flat();
+    const agentFlat = board.flat();
+    const boardCardDiff = symmetricDiff(new Set(agentFlat), new Set(sessionFlat));
+    const boardPositionDiff = board.length !== session.board.length || board.some((row, rowIndex) => row.some((card, index) => card !== session.board[rowIndex]?.[index]) || row.length !== (session.board[rowIndex]?.length ?? -1))
+      ? Math.max(board.length, session.board.length) === 4 ? board.reduce((count, row, rowIndex) => count + row.reduce((rowCount, card, index) => rowCount + (card !== session.board[rowIndex]?.[index] ? 1 : 0), 0), 0) : 4
+      : 0;
 
-    if (totalDrift > 4) {
-      return errors.stateMismatch(`Major drift detected: ${handDiff} hand card(s), ${boardDiff} board card(s) differ.`);
+    if (Math.abs(hand.length - session.hand.length) > 1 || boardCardDiff > 2 || boardPositionDiff > 2) {
+      return errors.stateMismatch(`Major drift detected: ${handDiff} hand card(s), ${boardPositionDiff} board position(s) differ.`);
     }
-    if (totalDrift > 0) {
-      warnings.push(`Minor drift: ${handDiff} hand, ${boardDiff} board card(s) differ. Using agent-provided state.`);
-    }
+    if (handDiff > 0 || boardPositionDiff > 0) warnings.push(`Minor drift: ${handDiff} hand, ${boardPositionDiff} board position(s) differ. Using agent-provided state.`);
 
     // Build state and call strategy
     try {
       if (decision === 'card') {
         const cardState: CardChoiceState = {
-          hand: hand as unknown as readonly CardNumber[],
+          hand: hand.filter((card) => card !== triggeringCard) as unknown as readonly CardNumber[],
           board: { rows: board.map(r => [...r]) as unknown as Board['rows'] },
           playerScores: session.scores.map(s => ({ id: s.playerId, score: s.score, penaltyThisRound: session.roundPenalties[s.playerId] ?? 0 })),
           playerCount: session.playerCount,
@@ -696,12 +736,15 @@ export class SessionManager {
     session.round = round;
     session.turn = turn;
     session.board = board.map(r => [...r]);
-    session.initialBoard = board.map(r => [...r]);
+    if (turn === 0 || session.initialBoard.length !== 4) session.initialBoard = board.map(r => [...r]);
     session.hand = [...hand];
     session.scores = [...scores];
     session.roundPenalties = {};
     session.turnHistory = [...history];
     session.phase = turn >= 1 ? 'in-round' : 'awaiting-round';
+    if (turn === 0) {
+      try { session.strategy.onRoundStart?.({ round, hand: hand as CardNumber[], board: toBoard(board) }); } catch { /* non-fatal */ }
+    }
     session.version++;
     session.lastEvent = 'resync_session';
     session.lastTurnKey = undefined;

@@ -83,7 +83,7 @@ function buildRowChoiceState(
       card: p.card,
     })),
     resolutionIndex: gameState.pendingResolution?.nextIndex ?? 0,
-    hand: player.hand,
+    hand: player.hand.filter((card) => card !== triggeringCard),
     playerScores,
     playerCount: gameState.players.length,
     round: gameState.round,
