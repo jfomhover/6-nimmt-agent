@@ -549,13 +549,25 @@ describe('full lifecycle', () => {
     let version = 0;
 
     // Round 1
-    const r1 = startRound(mgr, session.sessionId, version, 1);
+    const r1 = mgr.roundStarted({
+      sessionId: session.sessionId,
+      expectedVersion: version,
+      round: 1,
+      board: [[1], [2], [3], [4]],
+      hand: makeHand(),
+    }) as SessionResult;
     version = r1.sessionVersion;
 
     // Play 10 turns (use all 10 cards from hand)
     const hand = makeHand();
+    let lifecycleBoard = [[1], [2], [3], [4]];
     for (let t = 1; t <= 10; t++) {
       const card = hand[t - 1];
+      const opponentCard = card === 104 ? 103 : card + 1;
+      const causedOverflow = lifecycleBoard[3].length === 5;
+      const collectedCards = causedOverflow ? [...lifecycleBoard[3]] : undefined;
+      lifecycleBoard[3] = causedOverflow ? [card] : [...lifecycleBoard[3], card];
+      lifecycleBoard[3].push(opponentCard);
       const turnResult = mgr.turnResolved({
         sessionId: session.sessionId,
         expectedVersion: version,
@@ -563,13 +575,13 @@ describe('full lifecycle', () => {
         turn: t,
         plays: [
           { playerId: 'p0', card },
-          { playerId: 'p1', card: card === 104 ? 103 : card + 1 },
+          { playerId: 'p1', card: opponentCard },
         ],
         resolutions: [
-          { playerId: 'p0', card, rowIndex: 0, causedOverflow: false },
-          { playerId: 'p1', card: card === 104 ? 103 : card + 1, rowIndex: 1, causedOverflow: false },
+          { playerId: 'p0', card, rowIndex: 3, causedOverflow, ...(collectedCards ? { collectedCards } : {}) },
+          { playerId: 'p1', card: opponentCard, rowIndex: 3, causedOverflow: false },
         ],
-        boardAfter: [[5, card], [15, card + 1], [25], [35]],
+        boardAfter: lifecycleBoard,
       }) as SessionResult;
       expect(isDomainError(turnResult)).toBe(false);
       version = turnResult.sessionVersion;
