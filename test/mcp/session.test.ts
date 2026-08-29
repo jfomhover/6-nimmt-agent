@@ -567,7 +567,9 @@ describe('full lifecycle', () => {
       const causedOverflow = lifecycleBoard[3].length === 5;
       const collectedCards = causedOverflow ? [...lifecycleBoard[3]] : undefined;
       lifecycleBoard[3] = causedOverflow ? [card] : [...lifecycleBoard[3], card];
-      lifecycleBoard[3].push(opponentCard);
+      const opponentOverflow = lifecycleBoard[3].length === 5;
+      const opponentCollectedCards = opponentOverflow ? [...lifecycleBoard[3]] : undefined;
+      lifecycleBoard[3] = opponentOverflow ? [opponentCard] : [...lifecycleBoard[3], opponentCard];
       const turnResult = mgr.turnResolved({
         sessionId: session.sessionId,
         expectedVersion: version,
@@ -579,7 +581,7 @@ describe('full lifecycle', () => {
         ],
         resolutions: [
           { playerId: 'p0', card, rowIndex: 3, causedOverflow, ...(collectedCards ? { collectedCards } : {}) },
-          { playerId: 'p1', card: opponentCard, rowIndex: 3, causedOverflow: false },
+          { playerId: 'p1', card: opponentCard, rowIndex: 3, causedOverflow: opponentOverflow, ...(opponentCollectedCards ? { collectedCards: opponentCollectedCards } : {}) },
         ],
         boardAfter: lifecycleBoard,
       }) as SessionResult;
