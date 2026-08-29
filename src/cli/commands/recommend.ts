@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { readFileSync } from 'node:fs';
 import type { CardChoiceState, RowChoiceState } from '../../engine/types.js';
 import type { TurnResolution } from '../../engine/strategies/types.js';
-import { strategies, parseStrategySpec, deriveSeedState, xoshiro256ss } from '../../engine/index.js';
+import { strategies, parseStrategySpec, deriveSeedState, xoshiro256ss, validateCardChoiceState, validateRowChoiceState } from '../../engine/index.js';
 import { format } from '../formatters/index.js';
 import type { RecommendResult, OutputFormat } from '../formatters/types.js';
 import { didYouMean, outputError, createMeta } from '../helpers.js';
@@ -69,7 +69,11 @@ export const recommendCommand = new Command('recommend')
 
     // Read state
     let stateJson: string;
-    if (opts.state) {
+    if (opts.state && opts.stateFile) {
+      outputError(fmt, 'INVALID_STATE', 'Exactly one of --state or --state-file must be provided.');
+      process.exit(1);
+      return;
+    } else if (opts.state) {
       stateJson = opts.state as string;
     } else if (opts.stateFile) {
       try {
@@ -118,11 +122,24 @@ export const recommendCommand = new Command('recommend')
     }
 
     const warnings = checkWarnings(state);
+    let validationErrors: string[] = [];
+    if (missingFields.length === 0 && Array.isArray(state.playerScores)) {
+      const validation = decision === 'card'
+        ? validateCardChoiceState(state as unknown as CardChoiceState)
+        : validateRowChoiceState(state as unknown as RowChoiceState);
+      validationErrors = [...validation.errors];
+      warnings.push(...validation.warnings);
+      if (validationErrors.length > 0) {
+        outputError(fmt, 'INVALID_STATE', `State validation failed: ${validationErrors.join('; ')}`, validationErrors);
+        process.exit(1);
+        return;
+      }
+    }
 
     // Instantiate strategy
     const strat = strategies.get(strategyName)!(strategySpec.options);
     const playerCount = (state.playerCount as number) ?? 2;
-    const seedStr = 'recommend-' + Date.now();
+    const seedStr = 'recommend/' + JSON.stringify(state);
     const rngState = deriveSeedState(seedStr);
     strat.onGameStart?.({
       playerId: 'recommend-player',

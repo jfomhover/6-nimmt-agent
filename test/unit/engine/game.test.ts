@@ -3,11 +3,18 @@ import {
   createGame,
   dealRound,
   resolveTurn,
+  applyRowPick,
   scoreRound,
   isGameOver,
   getWinners,
 } from '../../../src/engine/game';
 import type { CardNumber, GameState, PlayCardMove } from '../../../src/engine/types';
+
+function resolveWithDefault(state: GameState, plays: PlayCardMove[]): GameState {
+  let result = resolveTurn(state, plays);
+  while (result.kind === 'needs-row-pick') result = applyRowPick(result.state, result.playerId, 0);
+  return result.state;
+}
 
 // ── createGame ─────────────────────────────────────────────────────────
 
@@ -146,9 +153,8 @@ describe('resolveTurn', () => {
       { playerId: 'p1', card: p1Card },
     ];
 
-    const noPickFn = (_id: string, _s: GameState): number => { throw new Error('Should not pick'); };
     // This may or may not overflow depending on seed, so just verify it doesn't throw
-    const result = resolveTurn(dealt, plays, noPickFn);
+    const result = resolveWithDefault(dealt, plays);
     expect(result.turn).toBe(2);
     expect(result.phase).toBe('awaiting-cards');
     expect(result.players[0].hand).toHaveLength(9);
@@ -161,7 +167,7 @@ describe('resolveTurn', () => {
       { playerId: 'p0', card: 999 as CardNumber },
       { playerId: 'p1', card: dealt.players[1].hand[0] },
     ];
-    expect(() => resolveTurn(dealt, plays, () => 0)).toThrow();
+    expect(() => resolveTurn(dealt, plays)).toThrow();
   });
 
   it('validates exact player count', () => {
@@ -169,12 +175,12 @@ describe('resolveTurn', () => {
     const plays: PlayCardMove[] = [
       { playerId: 'p0', card: dealt.players[0].hand[0] },
     ];
-    expect(() => resolveTurn(dealt, plays, () => 0)).toThrow();
+    expect(() => resolveTurn(dealt, plays)).toThrow();
   });
 
   it('throws if not in awaiting-cards phase', () => {
     const state = createGame(['p0', 'p1'], 'test-seed');
-    expect(() => resolveTurn(state, [], () => 0)).toThrow();
+    expect(() => resolveTurn(state, [])).toThrow();
   });
 
   it('10-player turn resolves correctly', () => {
@@ -187,7 +193,7 @@ describe('resolveTurn', () => {
       card: p.hand[0], // lowest card from each hand
     }));
 
-    const result = resolveTurn(dealt, plays, () => 0);
+    const result = resolveWithDefault(dealt, plays);
     expect(result.turn).toBe(2);
     for (const p of result.players) {
       expect(p.hand).toHaveLength(9);
@@ -212,7 +218,7 @@ describe('phase transitions', () => {
         card: p.hand[0],
       }));
 
-      current = resolveTurn(current, plays, () => 0);
+      current = resolveWithDefault(current, plays);
 
       if (t < 10) {
         expect(current.phase).toBe('awaiting-cards');
@@ -237,7 +243,7 @@ describe('scoreRound', () => {
         playerId: p.id,
         card: p.hand[0],
       }));
-      current = resolveTurn(current, plays, () => 0);
+      current = resolveWithDefault(current, plays);
     }
 
     expect(current.phase).toBe('round-over');
@@ -322,7 +328,7 @@ describe('score accumulation', () => {
         playerId: p.id,
         card: p.hand[0],
       }));
-      current = resolveTurn(current, plays, () => 0);
+      current = resolveWithDefault(current, plays);
       const totalScore = current.players.reduce((s, p) => s + p.score, 0);
       expect(totalScore).toBeGreaterThanOrEqual(prevTotalScore);
       prevTotalScore = totalScore;
@@ -338,7 +344,7 @@ describe('score accumulation', () => {
         playerId: p.id,
         card: p.hand[0],
       }));
-      current = resolveTurn(current, plays, () => 0);
+      current = resolveWithDefault(current, plays);
     }
 
     const round1Scores = current.players.map((p) => p.score);
@@ -351,7 +357,7 @@ describe('score accumulation', () => {
         playerId: p.id,
         card: p.hand[0],
       }));
-      current = resolveTurn(current, plays, () => 0);
+      current = resolveWithDefault(current, plays);
     }
 
     // Scores should be >= round 1 scores (cumulative)

@@ -33,8 +33,10 @@ interface Session {
   turn: number;
   completedRounds: number;
   board: number[][];
+  initialBoard: number[][];
   hand: number[];
   scores: { playerId: string; score: number }[];
+  roundPenalties: Record<string, number>;
   turnHistory: TurnResolution[];
   lastEvent: string;
   /** Serialised last turn_resolved payload for duplicate detection */
@@ -57,6 +59,26 @@ function fewestHeadsRow(board: number[][]): 0 | 1 | 2 | 3 {
     if (p < bestP) { bestP = p; best = i; }
   }
   return best as 0 | 1 | 2 | 3;
+}
+
+function computeBoardAfter(boardBefore: number[][], resolutions: { rowIndex: number; card: number; causedOverflow: boolean; collectedCards?: number[] }[], rowPicks: { rowIndex: number; collectedCards: number[] }[]): number[][] | undefined {
+  const board = boardBefore.map((row) => [...row]);
+  for (const resolution of [...resolutions].sort((a, b) => a.card - b.card)) {
+    if (resolution.rowIndex < 0 || resolution.rowIndex > 3 || !Number.isInteger(resolution.rowIndex)) return undefined;
+    const row = board[resolution.rowIndex];
+    const pick = rowPicks.find((p) => p.rowIndex === resolution.rowIndex && p.collectedCards.join(',') === (resolution.collectedCards ?? []).join(','));
+    if (pick && !resolution.causedOverflow) {
+      if (JSON.stringify(pick.collectedCards) !== JSON.stringify(row)) return undefined;
+      board[resolution.rowIndex] = [resolution.card];
+    } else if (resolution.causedOverflow || row.length >= 5) {
+      if (row.length !== 5 || JSON.stringify(resolution.collectedCards ?? []) !== JSON.stringify(row)) return undefined;
+      board[resolution.rowIndex] = [resolution.card];
+    } else {
+      if (row.length >= 5 || resolution.card <= row[row.length - 1]) return undefined;
+      board[resolution.rowIndex].push(resolution.card);
+    }
+  }
+  return board;
 }
 
 function isValidCard(c: number): boolean {
@@ -177,8 +199,10 @@ export class SessionManager {
       turn: 0,
       completedRounds: 0,
       board: [],
+      initialBoard: [],
       hand: [],
       scores: [],
+      roundPenalties: {},
       turnHistory: [],
       lastEvent: 'start_session',
     };
@@ -265,12 +289,14 @@ export class SessionManager {
 
     // Update session
     session.board = board.map(r => [...r]);
+    session.initialBoard = board.map(r => [...r]);
     session.hand = [...hand];
     session.round = round;
     session.turn = 0;
     session.phase = 'in-round';
     session.version++;
     session.turnHistory = [];
+    session.roundPenalties = {};
     session.lastEvent = 'round_started';
     session.lastTurnKey = undefined;
     session.lastTurnPayload = undefined;
@@ -347,13 +373,27 @@ export class SessionManager {
       });
     }
 
+    if (!Array.isArray(plays) || plays.length !== session.playerCount || new Set(plays.map(p => p.playerId)).size !== plays.length) {
+      return errors.domainError('INVALID_RESOLUTIONS', 'plays must contain exactly one play per player.', { recoverable: true, suggestedAction: 'none' });
+    }
+    const expectedCards = new Set(plays.map(p => p.card));
+    if (!Array.isArray(resolutions) || resolutions.length !== plays.length || resolutions.some(r => !expectedCards.has(r.card))) {
+      return errors.domainError('INVALID_RESOLUTIONS', 'Resolutions must contain one entry for every played card.', { recoverable: true, suggestedAction: 'none' });
+    }
+    const computedBoard = computeBoardAfter(session.board, resolutions, rowPicks ?? []);
+    if (!computedBoard) return errors.domainError('INVALID_RESOLUTIONS', 'Resolution contains an invalid row index.', { recoverable: true, suggestedAction: 'none' });
+    if (boardAfter && JSON.stringify(boardAfter) !== JSON.stringify(computedBoard)) {
+      return errors.domainError('INVALID_RESOLUTIONS', 'boardAfter does not match the computed board.', { recoverable: true, suggestedAction: 'resync_session' });
+    }
+
     // Build TurnResolution
+    const normalizedResolutions = [...resolutions].sort((a, b) => a.card - b.card);
     const resolution: TurnResolution = {
       turn,
       plays: plays as unknown as TurnResolution['plays'],
-      resolutions: resolutions as unknown as TurnResolution['resolutions'],
+      resolutions: normalizedResolutions as unknown as TurnResolution['resolutions'],
       rowPicks: (rowPicks ?? []) as unknown as TurnResolution['rowPicks'],
-      boardAfter: (boardAfter ?? session.board) as unknown as TurnResolution['boardAfter'],
+      boardAfter: computedBoard as unknown as TurnResolution['boardAfter'],
     };
 
     // Notify strategy
@@ -364,8 +404,11 @@ export class SessionManager {
     }
 
     // Update board
-    if (boardAfter) {
-      session.board = boardAfter.map(r => [...r]);
+    session.board = computedBoard.map(r => [...r]);
+    for (const resolution of normalizedResolutions) {
+      if (resolution.collectedCards) {
+        session.roundPenalties[resolution.playerId] = (session.roundPenalties[resolution.playerId] ?? 0) + resolution.collectedCards.reduce((sum, card) => sum + cattleHeads(card), 0);
+      }
     }
 
     // Remove played card from hand
@@ -500,13 +543,14 @@ export class SessionManager {
 
     // Auto-detect decision type
     const decision: 'card' | 'row' = params.decision ?? (triggeringCard != null ? 'row' : 'card');
+    if (decision === 'row' && (triggeringCard == null || !revealedThisTurn || resolutionIndex == null)) {
+      return errors.invalidState('Row recommendation requires triggeringCard, revealedThisTurn, and resolutionIndex.');
+    }
 
     // Drift detection
     const warnings: string[] = [];
     const handDiff = symmetricDiff(new Set(hand), new Set(session.hand));
-    const flatBoard = board.flat();
-    const flatSessionBoard = session.board.flat();
-    const boardDiff = symmetricDiff(new Set(flatBoard), new Set(flatSessionBoard));
+    const boardDiff = JSON.stringify(board) === JSON.stringify(session.board) ? 0 : board.flat().filter((c, i) => c !== session.board.flat()[i]).length;
     const totalDrift = handDiff + boardDiff;
 
     if (totalDrift > 4) {
@@ -522,12 +566,12 @@ export class SessionManager {
         const cardState: CardChoiceState = {
           hand: hand as unknown as readonly CardNumber[],
           board: { rows: board.map(r => [...r]) as unknown as Board['rows'] },
-          playerScores: Object.fromEntries(session.scores.map(s => [s.playerId, s.score])),
+          playerScores: session.scores.map(s => ({ id: s.playerId, score: s.score, penaltyThisRound: session.roundPenalties[s.playerId] ?? 0 })),
           playerCount: session.playerCount,
           round: session.round,
           turn: session.turn + 1,
           turnHistory: session.turnHistory as unknown as CardChoiceState['turnHistory'],
-          initialBoardCards: { rows: session.board.map(r => [r[0]]) as unknown as Board['rows'] },
+          initialBoardCards: session.initialBoard.map(r => r[0]) as unknown as CardChoiceState['initialBoardCards'],
         };
 
         const card = session.strategy.chooseCard(cardState);
@@ -547,14 +591,16 @@ export class SessionManager {
           revealedThisTurn: (revealedThisTurn ?? []) as unknown as RowChoiceState['revealedThisTurn'],
           resolutionIndex: resolutionIndex ?? 0,
           hand: hand as unknown as readonly CardNumber[],
-          playerScores: Object.fromEntries(session.scores.map(s => [s.playerId, s.score])),
+          playerScores: session.scores.map(s => ({ id: s.playerId, score: s.score, penaltyThisRound: session.roundPenalties[s.playerId] ?? 0 })),
           playerCount: session.playerCount,
           round: session.round,
           turn: session.turn,
           turnHistory: session.turnHistory as unknown as RowChoiceState['turnHistory'],
+          initialBoardCards: session.initialBoard.map(r => r[0]) as unknown as RowChoiceState['initialBoardCards'],
         };
 
         const row = session.strategy.chooseRow(rowState);
+        session.phase = 'awaiting-row-pick';
 
         return {
           ok: true,
@@ -650,8 +696,10 @@ export class SessionManager {
     session.round = round;
     session.turn = turn;
     session.board = board.map(r => [...r]);
+    session.initialBoard = board.map(r => [...r]);
     session.hand = [...hand];
     session.scores = [...scores];
+    session.roundPenalties = {};
     session.turnHistory = [...history];
     session.phase = turn >= 1 ? 'in-round' : 'awaiting-round';
     session.version++;

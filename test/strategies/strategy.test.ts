@@ -11,9 +11,11 @@ import {
   createGame,
   dealRound,
   resolveTurn,
+  applyRowPick,
   scoreRound,
   isGameOver,
   toCardChoiceState,
+  toRowChoiceState,
   deriveSeedState,
   xoshiro256ss,
 } from '../../src/engine';
@@ -71,30 +73,6 @@ function makeSeededRng(seed: string): () => number {
   return () => Number(xoshiro256ss(state) >> 11n) / 2 ** 53;
 }
 
-/** Build a rowPickFn compatible with resolveTurn's callback signature. */
-function makeRowPickFn(
-  strats: Map<string, ReturnType<typeof createRandomStrategy>>,
-) {
-  return (playerId: string, gs: { board: Board; players: { id: string; hand: CardNumber[]; score: number }[]; round: number; turn: number; turnHistory: readonly unknown[] }) => {
-    const player = gs.players.find((p) => p.id === playerId)!;
-    const playerScores: Record<string, number> = {};
-    for (const p of gs.players) playerScores[p.id] = p.score;
-    const rowState: RowChoiceState = {
-      board: gs.board,
-      triggeringCard: cn(0),
-      revealedThisTurn: [],
-      resolutionIndex: 0,
-      hand: player.hand,
-      playerScores,
-      playerCount: gs.players.length,
-      round: gs.round,
-      turn: gs.turn,
-      turnHistory: gs.turnHistory as RowChoiceState['turnHistory'],
-    };
-    return strats.get(playerId)!.chooseRow(rowState);
-  };
-}
-
 /** Play a full game with the random strategy, returning final state. */
 function playFullGame(seed: string, playerIds: string[]) {
   const strats = new Map(
@@ -120,7 +98,12 @@ function playFullGame(seed: string, playerIds: string[]) {
         return { playerId: id, card: strats.get(id)!.chooseCard(cardState) };
       });
 
-      state = resolveTurn(state, plays, makeRowPickFn(strats) as Parameters<typeof resolveTurn>[2]);
+      let resolution = resolveTurn(state, plays);
+      while (resolution.kind === 'needs-row-pick') {
+        const row = strats.get(resolution.playerId)!.chooseRow(toRowChoiceState(resolution.state, resolution.playerId));
+        resolution = applyRowPick(resolution.state, resolution.playerId, row);
+      }
+      state = resolution.state;
     }
 
     state = scoreRound(state);
@@ -287,7 +270,12 @@ describe('Random Strategy — Integration with Engine', () => {
         return { playerId: id, card };
       });
 
-      state = resolveTurn(state, plays, makeRowPickFn(strats) as Parameters<typeof resolveTurn>[2]);
+      let resolution = resolveTurn(state, plays);
+      while (resolution.kind === 'needs-row-pick') {
+        const row = strats.get(resolution.playerId)!.chooseRow(toRowChoiceState(resolution.state, resolution.playerId));
+        resolution = applyRowPick(resolution.state, resolution.playerId, row);
+      }
+      state = resolution.state;
     }
 
     expect(state.phase).toBe('round-over');

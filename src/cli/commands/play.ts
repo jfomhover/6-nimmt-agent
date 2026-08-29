@@ -6,6 +6,7 @@ import {
   createGame,
   dealRound,
   resolveTurn,
+  applyRowPick,
   scoreRound,
   isGameOver,
   toCardChoiceState,
@@ -59,7 +60,7 @@ function buildTurnResolution(state: GameState): TurnResolution {
       rowIndex: rp.rowIndex,
       collectedCards: [...rp.collectedCards],
     })),
-    boardAfter: entry.boardAfter.rows.map((row) => [...row]),
+    boardAfter: entry.boardAfter.map((row) => [...row]),
   };
 }
 
@@ -70,21 +71,19 @@ function buildRowChoiceState(
   gameState: GameState,
 ): import('../../engine/types.js').RowChoiceState {
   const player = gameState.players.find((p) => p.id === playerId)!;
-  const playerScores: Record<string, number> = {};
-  for (const p of gameState.players) {
-    playerScores[p.id] = p.score;
-  }
+  const playerScores = gameState.players.map((p) => ({ id: p.id, score: p.score, penaltyThisRound: p.collected.reduce((s, c) => s + cattleHeads(c), 0) }));
   return {
     board: gameState.board,
     triggeringCard,
     revealedThisTurn: sortedPlays.map((p) => ({ playerId: p.playerId, card: p.card })),
-    resolutionIndex: 0,
+    resolutionIndex: gameState.pendingResolution?.nextIndex ?? 0,
     hand: player.hand,
     playerScores,
     playerCount: gameState.players.length,
     round: gameState.round,
     turn: gameState.turn,
     turnHistory: gameState.turnHistory,
+    initialBoardCards: gameState.initialBoardCards,
   };
 }
 
@@ -187,17 +186,17 @@ export const playCommand = new Command('play')
             card: play.card as number,
           }));
 
-          state = resolveTurn(state, plays, (playerId: string, tempState: GameState): number => {
-            const strat = strategyMap.get(playerId)!;
-            const play = sortedPlays.find((sp) => sp.playerId === playerId)!;
+          let result = resolveTurn(state, plays);
+          while (result.kind === 'needs-row-pick') {
+            const strat = strategyMap.get(result.playerId)!;
+            let row = 0 as 0 | 1 | 2 | 3;
             try {
-              const rowChoice = buildRowChoiceState(playerId, play.card, sortedPlays, tempState);
-              const chosen = strat.chooseRow(rowChoice);
-              return isValidRowIndex(chosen) ? chosen : fewestHeadsRow(tempState);
-            } catch {
-              return fewestHeadsRow(tempState);
-            }
-          });
+              const chosen = strat.chooseRow(buildRowChoiceState(result.playerId, result.card, sortedPlays, result.state));
+              row = isValidRowIndex(chosen) ? chosen : fewestHeadsRow(result.state);
+            } catch { row = fewestHeadsRow(result.state); }
+            result = applyRowPick(result.state, result.playerId, row);
+          }
+          state = result.state;
 
           // Build placements and rowPicks from turn history
           const lastEntry = state.turnHistory[state.turnHistory.length - 1];

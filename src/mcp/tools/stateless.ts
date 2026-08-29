@@ -4,7 +4,7 @@
 
 import type { CardChoiceState, RowChoiceState } from '../../engine/types.js';
 import type { TurnResolution } from '../../engine/strategies/types.js';
-import { strategies, deriveSeedState, xoshiro256ss, cattleHeads } from '../../engine/index.js';
+import { strategies, deriveSeedState, xoshiro256ss, cattleHeads, validateCardChoiceState, validateRowChoiceState } from '../../engine/index.js';
 import { invalidStrategy, invalidState, engineError, type DomainError } from '../errors.js';
 
 // ── Strategy descriptions (mirrors CLI strategies command) ──────────
@@ -126,6 +126,14 @@ export function validateState(params: ValidateStateParams): ValidateStateResult 
     if (tc !== undefined && (typeof tc !== 'number' || tc < 1 || tc > 104)) {
       errors.push(`triggeringCard ${tc} is outside valid range 1–104.`);
     }
+  }
+
+  if (errors.length === 0 && Array.isArray(state.playerScores) && rows) {
+    const result = decision === 'card'
+      ? validateCardChoiceState(state as unknown as CardChoiceState)
+      : validateRowChoiceState(state as unknown as RowChoiceState);
+    errors.push(...result.errors);
+    warnings.push(...result.warnings);
   }
 
   // Duplicate detection: hand vs board

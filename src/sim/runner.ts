@@ -8,6 +8,7 @@ import {
   createGame,
   dealRound,
   resolveTurn,
+  applyRowPick,
   scoreRound,
   isGameOver,
   toCardChoiceState,
@@ -60,7 +61,7 @@ function buildTurnResolution(state: GameState): TurnResolution {
       rowIndex: rp.rowIndex,
       collectedCards: [...rp.collectedCards],
     })),
-    boardAfter: entry.boardAfter.rows.map((row) => [...row]),
+    boardAfter: entry.boardAfter.map((row) => [...row]),
   };
 }
 
@@ -73,10 +74,7 @@ function buildRowChoiceState(
   gameState: GameState,
 ): RowChoiceState {
   const player = gameState.players.find((p) => p.id === playerId)!;
-  const playerScores: Record<string, number> = {};
-  for (const p of gameState.players) {
-    playerScores[p.id] = p.score;
-  }
+  const playerScores = gameState.players.map((p) => ({ id: p.id, score: p.score, penaltyThisRound: p.collected.reduce((s, c) => s + cattleHeads(c), 0) }));
   return {
     board: gameState.board,
     triggeringCard,
@@ -84,13 +82,14 @@ function buildRowChoiceState(
       playerId: p.playerId,
       card: p.card,
     })),
-    resolutionIndex: 0,
+    resolutionIndex: gameState.pendingResolution?.nextIndex ?? 0,
     hand: player.hand,
     playerScores,
     playerCount: gameState.players.length,
     round: gameState.round,
     turn: gameState.turn,
     turnHistory: gameState.turnHistory,
+    initialBoardCards: gameState.initialBoardCards,
   };
 }
 
@@ -190,37 +189,18 @@ export function runGame(config: SimConfig): GameResult {
       // Sort plays for building revealedThisTurn
       const sortedPlays = [...plays].sort((a, b) => a.card - b.card);
 
-      // Resolve turn with rowPickFn
-      state = resolveTurn(
-        state,
-        plays,
-        (playerId: string, tempState: GameState): number => {
-          const strat = strategyMap.get(playerId)!;
-          const play = sortedPlays.find((sp) => sp.playerId === playerId)!;
-
-          try {
-            const rowChoice = buildRowChoiceState(
-              playerId,
-              play.card,
-              sortedPlays,
-              tempState,
-            );
-            const chosen = strat.chooseRow(rowChoice);
-            if (isValidRowIndex(chosen)) {
-              return chosen;
-            }
-            console.warn(
-              `Strategy "${strat.name}" (${playerId}) returned invalid row ${chosen}; using fewest-heads.`,
-            );
-            return fewestHeadsRow(tempState);
-          } catch (err) {
-            console.warn(
-              `Strategy "${strat.name}" (${playerId}) threw in chooseRow: ${err}; using fewest-heads.`,
-            );
-            return fewestHeadsRow(tempState);
-          }
-        },
-      );
+      let result = resolveTurn(state, plays);
+      while (result.kind === 'needs-row-pick') {
+        const picker = result.playerId;
+        const strat = strategyMap.get(picker)!;
+        let row = 0 as 0 | 1 | 2 | 3;
+        try {
+          const chosen = strat.chooseRow(buildRowChoiceState(picker, result.card, sortedPlays, result.state));
+          row = isValidRowIndex(chosen) ? chosen : fewestHeadsRow(result.state);
+        } catch { row = fewestHeadsRow(result.state); }
+        result = applyRowPick(result.state, picker, row);
+      }
+      state = result.state;
 
       // onTurnResolved
       const resolution = buildTurnResolution(state);

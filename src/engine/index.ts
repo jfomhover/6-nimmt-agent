@@ -13,7 +13,8 @@ export type {
   PickRowMove,
   PlacementResult,
   TurnResolutionResult,
-  PendingRowPick,
+  TurnResolutionDetail,
+  PendingTurnResolution,
 } from './types';
 
 export { cattleHeads, isValidCardNumber, createDeck } from './card';
@@ -31,18 +32,18 @@ export { tail, penalty, rowLength, appendCard, isOverflowing } from './row';
 
 export { determinePlacement, placeCard, collectRow } from './board';
 
-export type { MustPickRow } from './board';
-
 export {
   createGame,
   dealRound,
   resolveTurn,
+  applyRowPick,
   scoreRound,
   isGameOver,
   getWinners,
 } from './game';
 
 export { toCardChoiceState, toRowChoiceState } from './visible-state';
+export { validateCardChoiceState, validateRowChoiceState, boardFromJson } from './validation';
 
 export type { Strategy, TurnResolution } from './strategies';
 export { strategies, parseStrategySpec, strategyKey } from './strategies';

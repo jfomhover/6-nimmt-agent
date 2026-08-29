@@ -72,9 +72,9 @@ function resolveTurn(
     ],
     resolutions: [
       { playerId: 'p0', card: playedCard, rowIndex: 0, causedOverflow: false },
-      { playerId: 'p1', card: playedCard + 1, rowIndex: 1, causedOverflow: false },
+      { playerId: 'p1', card: playedCard + 1, rowIndex: 0, causedOverflow: false },
     ],
-    boardAfter: boardAfter ?? [[5, playedCard], [15, playedCard + 1], [25], [35]],
+    boardAfter: boardAfter ?? [[5, playedCard, playedCard + 1], [15], [25], [35]],
   });
   expect(isDomainError(result)).toBe(false);
   return result as SessionResult;
@@ -247,9 +247,9 @@ describe('turnResolved', () => {
       ],
       resolutions: [
         { playerId: 'p0', card: 10, rowIndex: 0, causedOverflow: false },
-        { playerId: 'p1', card: 11, rowIndex: 1, causedOverflow: false },
+         { playerId: 'p1', card: 11, rowIndex: 0, causedOverflow: false },
       ],
-      boardAfter: [[5, 10], [15, 11], [25], [35]],
+      boardAfter: [[5, 10, 11], [15], [25], [35]],
     });
     expect(isDomainError(result)).toBe(true);
     expect((result as DomainError).code).toBe('DUPLICATE_EVENT');

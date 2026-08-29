@@ -4,10 +4,10 @@
 import type { Board, CardNumber, PlacementResult, Row } from './types';
 import { tail, isOverflowing, appendCard } from './row';
 
-/** Sentinel kind returned when the played card is lower than every row tail. */
-const MUST_PICK = ['must', 'pick', 'row'].join('-');
+const PLACE_KIND = 'place';
+const MUST_PICK_KIND = ['must', 'pick', 'row'].join('-');
 
-export type MustPickRow = { kind: typeof MUST_PICK };
+/** Sentinel kind returned when the played card is lower than every row tail. */
 
 /**
  * Determine where a card should be placed on the board.
@@ -17,7 +17,7 @@ export type MustPickRow = { kind: typeof MUST_PICK };
 export function determinePlacement(
   board: Board,
   card: CardNumber,
-): PlacementResult | MustPickRow {
+): PlacementResult {
   let bestIndex = -1;
   let bestTail = -1;
 
@@ -30,19 +30,20 @@ export function determinePlacement(
   }
 
   if (bestIndex === -1) {
-    return { kind: MUST_PICK };
+    return { kind: MUST_PICK_KIND };
   }
 
   const targetRow = board.rows[bestIndex];
   if (isOverflowing(targetRow)) {
     return {
-      rowIndex: bestIndex,
+      kind: PLACE_KIND,
+      rowIndex: bestIndex as 0 | 1 | 2 | 3,
       causedOverflow: true,
       collectedCards: targetRow,
     };
   }
 
-  return { rowIndex: bestIndex, causedOverflow: false };
+  return { kind: PLACE_KIND, rowIndex: bestIndex as 0 | 1 | 2 | 3, causedOverflow: false };
 }
 
 /**

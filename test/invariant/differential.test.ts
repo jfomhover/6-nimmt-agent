@@ -54,7 +54,7 @@ describe('Differential: determinePlacement', () => {
       const refResult = ref.determinePlacement(refBoard, card);
 
       // Engine returns MustPickRow or PlacementResult
-      if ('kind' in engineResult) {
+      if (engineResult.kind !== 'place') {
         expect(refResult).toBe(-1);
       } else {
         expect(engineResult.rowIndex).toBe(refResult);
@@ -84,11 +84,11 @@ describe('Differential: full turn resolution', () => {
         card: p.hand[0],
       }));
 
-      const engineAfterState = engine.resolveTurn(
-        dealtState,
-        enginePlays,
-        () => 0,
-      );
+      let engineResolution = engine.resolveTurn(dealtState, enginePlays);
+      while (engineResolution.kind === 'needs-row-pick') {
+        engineResolution = engine.applyRowPick(engineResolution.state, engineResolution.playerId, 0);
+      }
+      const engineAfterState = engineResolution.state;
 
       // Reference: deal the same way, sort hands to match engine
       const refDeck = ref.createDeck(seed, 1);
@@ -148,9 +148,11 @@ describe('Differential: full game identical scores', () => {
             const idx = Math.floor(enginePrng.nextFloat() * p.hand.length);
             return { playerId: p.id, card: p.hand[idx] };
           });
-          eState = engine.resolveTurn(eState, plays, () => {
-            return Math.floor(enginePrng.nextFloat() * 4);
-          });
+          let resolution = engine.resolveTurn(eState, plays);
+          while (resolution.kind === 'needs-row-pick') {
+            resolution = engine.applyRowPick(resolution.state, resolution.playerId, Math.floor(enginePrng.nextFloat() * 4) as 0 | 1 | 2 | 3);
+          }
+          eState = resolution.state;
         }
         eState = engine.scoreRound(eState);
         engineRounds++;

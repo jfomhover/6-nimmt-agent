@@ -32,6 +32,7 @@ import { readGameState, detectAction, getFinalScores, findCheapestRow, captureEr
 import { playCard, pickRow } from './actor.js';
 import { log, logError } from './logger.js';
 import { GameCollector } from './collector.js';
+import { deriveSeedState, xoshiro256ss } from '../engine/index.js';
 
 /** Safely extract message and stack from any thrown value. */
 function formatError(err: unknown): { message: string; stack?: string } {
@@ -133,7 +134,7 @@ export async function playGame(page: Page, opts: PlayOptions): Promise<GameResul
   strategy.onGameStart?.({
     playerId: initialState.myPlayerId,
     playerCount,
-    rng: Math.random,
+    rng: (() => { const state = deriveSeedState(`headless/${initialState.myPlayerId}/${opts.strategyName ?? strategy.name}`); return () => Number(xoshiro256ss(state) >> 11n) / 2 ** 53; })(),
   });
 
   /** Called when game ends. Determines win based on lowest score. */
@@ -558,7 +559,7 @@ function buildRowChoiceState(
     board,
     // triggeringCard is the card we played that forced the row pick.
     // We track it from the previous play action; fallback to 1 if unknown.
-    triggeringCard: lastPlayedCard ?? (1 as CardNumber),
+    triggeringCard: lastPlayedCard ?? (() => { throw new Error('Cannot build row-choice state without the triggering card.'); })(),
     revealedThisTurn: [],
     resolutionIndex: 0,
     hand: state.hand.map(h => h.cardValue),
@@ -567,5 +568,6 @@ function buildRowChoiceState(
     round,
     turn, // already 1-based from inferTurn
     turnHistory: [],
+    initialBoardCards: state.board.rows.map((row) => row[0]) as CardNumber[],
   };
 }

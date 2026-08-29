@@ -304,7 +304,7 @@ export function createMcsPriorStrategy(options: McsPriorOptions = {}): Strategy 
   const parsedTrapped = Number(options.trappedDiscount ?? DEFAULT_TRAPPED_DISCOUNT);
   const trappedDiscount = Math.max(0, Number.isNaN(parsedTrapped) ? DEFAULT_TRAPPED_DISCOUNT : parsedTrapped);
 
-  let rng: () => number = Math.random;
+  let rng: (() => number) | null = null;
   let playerCount = 2;
   let seenCards = new Set<number>();
 
@@ -338,6 +338,7 @@ export function createMcsPriorStrategy(options: McsPriorOptions = {}): Strategy 
     },
 
     chooseCard(state) {
+      if (!rng) throw new Error('McsPriorStrategy: onGameStart() must be called before chooseCard()');
       const { hand, board, turn } = state;
       const opponentCount = playerCount - 1;
       const cardsPerPlayer = 10 - turn + 1;
@@ -396,6 +397,7 @@ export function createMcsPriorStrategy(options: McsPriorOptions = {}): Strategy 
     },
 
     chooseRow(state) {
+      if (!rng) throw new Error('McsPriorStrategy: onGameStart() must be called before chooseRow()');
       const { board } = state;
       const opponentCount = playerCount - 1;
       const hand = state.hand.filter(c => c !== state.triggeringCard);
