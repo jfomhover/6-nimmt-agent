@@ -42,6 +42,8 @@ MCS-100 leads MCS-Prior by only 0.3 ELO points, so they are effectively tied at 
 | `random` | 4.6% | 61.9 | 67 | 8 | 118 | 18.8 | 35.3 |
 | `dummy-min` | 2.7% | 65.2 | 69 | 1 | 112 | 19.1 | 28.2 |
 
+Win rate is calculated per strategy seat across all games in which that strategy participated. Since games are multiplayer, strategies can appear multiple times and tied winners count for each winning seat; therefore, these percentages do not sum to 100%.
+
 ---
 
 ## Before/After Comparison

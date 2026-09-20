@@ -80,6 +80,8 @@ Latest results from a 1,000-game competition tournament (3–6 players per game,
 | 6 | `random` | 1238 | 4.6% | 61.9 |
 | 7 | `dummy-min` | 1159 | 2.7% | 65.2 |
 
+> Win rate is calculated per strategy seat across all games in which that strategy participated. Because games are multiplayer, strategies can appear multiple times and tied winners count for each winning seat, so win rates do not sum to 100%.
+
 > [Full report →](docs/results/competition-post-round10-1000-report.md)
 
 ---
