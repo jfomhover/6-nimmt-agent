@@ -18,15 +18,15 @@ Raw output: `competition-post-round10-1000-raw.json`.
 
 | Rank | Strategy | ELO | Recent-rating StdDev | Player-games |
 |---:|---|---:|---:|---:|
-| 1 | **`mcs-prior:mcPerCard=100`** | **1704** | ±34 | 503 |
-| 2 | `mcs:mcPerCard=100` | 1704 | ±21 | 525 |
+| 1 | **`mcs:mcPerCard=100`** | **1704** | ±21 | 525 |
+| 2 | `mcs-prior:mcPerCard=100` | 1704 | ±34 | 503 |
 | 3 | `mcs:mcPerCard=50` | 1658 | ±30 | 482 |
 | 4 | `bayesian-simple` | 1519 | ±26 | 456 |
 | 5 | `dummy-max` | 1366 | ±34 | 488 |
 | 6 | `random` | 1238 | ±14 | 506 |
 | 7 | `dummy-min` | 1159 | ±24 | 498 |
 
-MCS-Prior leads MCS-100 by only 0.3 ELO points, so they are effectively tied at this sample size. MCS-100 had the highest observed win rate.
+MCS-100 leads MCS-Prior by only 0.3 ELO points, so they are effectively tied at this sample size. MCS-100 also had the highest observed win rate.
 
 ---
 
@@ -48,9 +48,9 @@ MCS-Prior leads MCS-100 by only 0.3 ELO points, so they are effectively tied at 
 
 | Strategy | Previous ELO | Post-fix ELO | Previous rank | Post-fix rank | Previous avg score | Post-fix avg score |
 |---|---:|---:|---:|---:|---:|---:|
-| `mcs:mcPerCard=100` | 1597 | 1704 | 1 | 2* | 33.3 | 32.1 |
+| `mcs:mcPerCard=100` | 1597 | 1704 | 1 | 1* | 33.3 | 32.1 |
 | `mcs:mcPerCard=50` | 1558 | 1658 | 2 | 3 | 36.6 | 36.2 |
-| `mcs-prior:mcPerCard=100` | 1500 | 1704 | 3 | 1* | 37.5 | 38.6 |
+| `mcs-prior:mcPerCard=100` | 1500 | 1704 | 3 | 2* | 37.5 | 38.6 |
 | `bayesian-simple` | 1431 | 1519 | 4 | 4 | 43.1 | 40.7 |
 | `dummy-max` | 1367 | 1366 | 5 | 5 | 48.2 | 49.4 |
 | `random` | 1198 | 1238 | 6 | 6 | 61.8 | 61.9 |

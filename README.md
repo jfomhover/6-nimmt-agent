@@ -57,7 +57,7 @@ The game loop is 100% deterministic — no LLM in the play path. The engine call
 | `dummy-max` | Always plays the highest card in hand |
 | `bayesian-simple` | Expected-penalty minimisation over unseen card distribution |
 | `mcs` | Monte Carlo Simulation — simulates random game completions |
-| `mcs-prior` | **Strongest** — MCS + prior-based heuristic + opponent modeling (~29% win rate vs mcs's ~24%) |
+| `mcs-prior` | MCS + prior-based heuristic + opponent modeling |
 
 ```bash
 # Tune MCS-Prior options
@@ -68,19 +68,19 @@ npm run play -- --strategy mcs-prior:mcPerCard=200,timingWeight=0.3,trappedDisco
 
 ## Strategy Leaderboard
 
-Results from a 1000-game competition tournament (3–6 players per game, random draws from pool). ELO: standard chess (initial=1500, K=32, D=400, normalized by N−1).
+Latest results from a 1,000-game competition tournament (3–6 players per game, random draws from pool). ELO: standard chess (initial=1500, K=32, D=400, normalized by N−1).
 
 | Rank | Strategy | ELO | Win Rate | Avg Score |
 |------|----------|-----|----------|-----------|
-| 🥇 | `mcs:mcPerCard=100` | **1597** | 38.5% | 33.3 |
-| 🥈 | `mcs:mcPerCard=50` | 1558 | 36.1% | 36.6 |
-| 🥉 | `mcs-prior:mcPerCard=100` | 1500 | 34.3% | 37.5 |
-| 4 | `bayesian-simple` | 1431 | 25.0% | 43.1 |
-| 5 | `dummy-max` | 1367 | 16.0% | 48.2 |
-| 6 | `random` | 1198 | 5.3% | 61.8 |
-| 7 | `dummy-min` | 1083 | 3.2% | 66.0 |
+| 🥇 | `mcs:mcPerCard=100` | **1704** | 41.5% | 32.1 |
+| 🥈 | `mcs-prior:mcPerCard=100` | 1704 | 35.7% | 38.6 |
+| 🥉 | `mcs:mcPerCard=50` | 1658 | 35.4% | 36.2 |
+| 4 | `bayesian-simple` | 1519 | 26.7% | 40.7 |
+| 5 | `dummy-max` | 1366 | 12.4% | 49.4 |
+| 6 | `random` | 1238 | 4.6% | 61.9 |
+| 7 | `dummy-min` | 1159 | 2.7% | 65.2 |
 
-> [Full report →](docs/results/competition-1000-report.md)
+> [Full report →](docs/results/competition-post-round10-1000-report.md)
 
 ---
 
